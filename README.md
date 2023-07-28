@@ -8,7 +8,7 @@ Sonar通过遍历语法树的形式来进行代码检查
 
 ### 树`Tree`
 
-整个文件的语法树中的一个节点，表示一个语句、一个表达式、一个变量、一个方法、一个类等等
+整个文件的语法树中的一个节点，表示一个语句、一个表达式、一个变量、一个方法、一个类等等。树的类型非常多，具体可以在`org.sonar.plugins.java.api.tree.BaseTreeVisitor`中找到。
 
 * `Tree.is(...)`：判断这个节点的类型，比如`Tree.is(Tree.Kind.METHOD)`、`Tree.is(Tree.Kind.CLASS)`、`Tree.is(Tree.Kind.VARIABLE)`等等
 
@@ -70,15 +70,89 @@ Sonar通过遍历语法树的形式来进行代码检查
 
 `ExpressionTree`有一系列不同的实现类，比如`LiteralTree`、`MemberSelectExpressionTree`、`NewClassTree`、`MethodInvocationTree`等等
 
+通常可以通过`ExpressionTree.kind()`判断表达式树的精确类型，然后强制转换为对应的类型；或者通过`ExpressionTree.firstToken()`和`ExpressionTree.lastToken()`取得表达式部分token，进一步获得token的位置
+
 * `ExpressionTree.symbolType()`：表达式的值的类型
 
 * `ExpressionTree.asConstant()`：获取表达式的值
+
+以下列出一些常用的子类：
+
+##### `UnaryExpressionTree`
+
+`operatorToken()`、`expression()`
+
+##### `BinaryExpressionTree`
+
+`operatorToken()`、`leftOperand()`、`rightOperand()`
+
+##### `ConditionalExpressionTree`
+
+##### `ArrayAccessExpressionTree`
+
+##### `MemberSelectExpressionTree`
 
 #### 语句树`StatementTree`
 
 `StatementTree`有一系列不同的实现类，比如`AssertStatementTree`、`ReturnStatementTree`、`IfStatementTree`，`ForEachStatementTree`等等
 
 `StatementTree`本身没有`Tree`之外的方法，但它的子类有很多方法，比如`IfStatementTree.thenStatement()`、`IfStatementTree.elseStatement()`、`IfStatementTree.condition()`等等
+
+以下列出一些常用的子类：
+
+##### `IfStatementTree`
+
+`ifKeyword()`、`openParenToken()`、`closeParenToken()`、`thenStatement()`、`elseKeyword()`、`elseStatement()`、`condition()`
+
+##### `AssertStatementTree`
+
+`assertKeyword()`、`condition()`、`colonToken()`、`detail()`
+
+##### `SwitchStatementTree`
+
+`switchKeyword()`、`openParenToken()`、`expression()`、`closeParenToken()`、`openBraceToken()`、`cases()`、`closeBraceToken()`
+
+本身没有方法，所用的方法全部来自于`SwitchTree`
+
+##### `WhileStatementTree`
+
+`whileKeyword()`、`openParenToken()`、`condition()`、`closeParenToken()`、`statement()`
+
+##### `DoWhileStatementTree`
+
+`doKeyword()`、`statement()`、`whileKeyword()`、`openParenToken()`、`condition()`、`closeParenToken()`
+
+##### `ForStatementTree`
+
+`forKeyword()`、`openParenToken()`、`variable()`、`expression()`、`colonToken()`、`closeParenToken()`、`statement()`
+
+##### `BreakStatementTree`
+
+`breakKeyword()`
+
+##### `YieldStatementTree`
+
+`yieldKeyword()`、`expression()`
+
+##### `ContinueStatementTree`
+
+`continueKeyword()`
+
+##### `ReturnStatementTree`
+
+`returnKeyword()`、`expression()`
+
+##### `ThrowStatementTree`
+
+`throwKeyword()`、`expression()`
+
+##### `SynchronizedStatementTree`
+
+`synchronizedKeyword()`、`openParenToken()`、`expression()`、`closeParenToken()`、`block()`
+
+##### `TryStatementTree`
+
+`tryKeyword()`、`openParenToken()`、`closeParenToken()`、`resourceList()`、`block()`、`catches()`、`finallyKeyword()`、`finallyBlock()`
 
 #### 块树`BlockTree`
 
@@ -94,11 +168,13 @@ Sonar通过遍历语法树的形式来进行代码检查
 
 #### 标识符树`IdentifierTree`
 
+* `IdentifierTree.name()`：标识符的名称，类型是`String`
 
+* `IdentifierTree.symbol()`：标识符的符号
 
 ##### 调用方法树`MethodInvocationTree`
 
-
+// TODO
 
 
 #### 注解树`AnnotationTree`
@@ -143,6 +219,16 @@ Sonar通过遍历语法树的形式来进行代码检查
 
 * `Symbol.usages()`：获取符号的使用列表，类型是`List<IdentifierTree>`，可以获取符号的使用位置
 
+
+### 语法token`SyntaxToken`
+
+一个`SyntaxToken`表示一个词语或者符号，比如`return`、`String`、`==`、`+`、`{`、`}`等等。使用token可以有效检查代码格式，比如判断是否有空格、是否有换行等等。token也是SonarJava中获取代码源文本的唯一方式
+
+* `SyntaxToken.text()`：token的原文本
+
+* `SyntaxToken.line()`：token所在的行数
+
+* `SyntaxToken.column()`：token所在的列数
 
 
 ## 自定义规则
@@ -421,9 +507,7 @@ public class 测试文件名 {
 
 ### 编程规约
 
-#### 命名风格
-
-##### 1.1.1 【强制】代码中的命名均不能以下划线或美元符号开始，也不能以下划线或美元符号结束。
+#### 1.1.1 【强制】代码中的命名均不能以下划线或美元符号开始，也不能以下划线或美元符号结束。
 
 由于命名规范多用于类、方法和变量的命名，这里考虑遍历这三者的语法树。这里需要遍历多种语法树，但语法树之间互不影响，所以`BaseTreeVisitor`和`IssueSubscriptionVisitor`都可以用
 
@@ -542,7 +626,7 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 }
 ```
 
-##### 1.1.6 【强制】常量命名应该全部大写，单词间用下划线隔开，力求语义表达完整清楚，不要嫌名字长。
+#### 1.1.6 【强制】常量命名应该全部大写，单词间用下划线隔开，力求语义表达完整清楚，不要嫌名字长。
 
 检测单词间是否用下划线隔开比较困难，需要识别单个单词，这里只检测常量（即`final`修饰的变量）命名是否全部大写。由于只检测变量，这里选择使用`IssuableSubscriptionVisitor`。
 
@@ -592,7 +676,7 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 }
 ```
 
-##### 1.1.11 【强制】避免在子父类的成员变量之间、或者不同代码块的局部变量之间采用完全相同的命名，使可理解性降低。
+#### 1.1.11 【强制】避免在子父类的成员变量之间、或者不同代码块的局部变量之间采用完全相同的命名，使可理解性降低。
 
 由于只遍历类树，这里选择使用`IssuableSubscriptionVisitor`。
 
@@ -690,3 +774,7 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
   }
 }
 ```
+
+#### 1.2.2 【强制】long 或 Long 赋值时，数值后使用大写 L，不能是小写 l，小写容易跟数字混淆，造成误解。
+
+#### 1.3.2 【强制】左小括号和右边相邻字符之间不需要空格；右小括号和左边相邻字符之间也不需要空格；而左大括号前需要加空格。
