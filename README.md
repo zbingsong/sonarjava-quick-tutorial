@@ -1,6 +1,9 @@
 # SonarQube自定义规则简便文档
 
-Sonar通过遍历语法树的形式来进行代码检查
+Sonar通过遍历语法树的形式来进行代码检查。
+
+官方的sonar-java插件里已经内置了很多规则，可以在[这里](https://github.com/SonarSource/sonar-java/tree/master/java-checks/src/main/java/org/sonar/java/checks)看到源码。
+
 
 
 
@@ -10,35 +13,49 @@ Sonar通过遍历语法树的形式来进行代码检查
 
 整个文件的语法树中的一个节点，表示一个语句、一个表达式、一个变量、一个方法、一个类等等。树的类型非常多，具体可以在`org.sonar.plugins.java.api.tree.BaseTreeVisitor`中找到。
 
-* `Tree.is(...)`：判断这个节点的类型，比如`Tree.is(Tree.Kind.METHOD)`、`Tree.is(Tree.Kind.CLASS)`、`Tree.is(Tree.Kind.VARIABLE)`等等
+所有的树类型的组件都可以使用`Tree`类的方法。
 
-* `Tree.parent()`：获取这个节点的父节点，类型是`Tree`
+`Tree`下有`Tree.Kind`枚举类，包含了所有树节点的种类。注：后面会遇到[类型`Type`](#类型type)，和`Tree.Kind`不是同一个东西。为做区分，将`Tree.Kind`称为种类，将[`Type`](#类型type)称为类型。
 
-* `Tree.firstToken()`：获取这个节点的第一个token，类型是`SyntaxToken`；`SyntaxToken.text()`可以获取token的文本
+* `boolean is(Kind... var1)`：判断这个节点的种类，比如`Tree.Kind.METHOD`、`Tree.Kind.CLASS`等；一次可传入多个类型，如果有一个种类匹配则返回`true`。
 
-* `Tree.lastToken()`：获取这个节点的最后一个token，类型是`SyntaxToken`；`SyntaxToken.text()`可以获取token的文本
+* `@Nullable Tree parent()`：获取父节点。
 
-* `Tree.metadata()`：获取这个节点的元数据，类型是`SymbolMetadata`，可以获取节点的注解等信息
+* `@Nullable SyntaxToken firstToken()`：获取这个节点的第一个[`SyntaxToken`](#语法tokensyntaxtoken)。
 
-* `Tree.kind()`：获取这个节点的类型；`Tree.Kind`是一个枚举类，包含了所有树节点的类型
+* `@Nullable SyntaxToken lastToken()`：获取这个节点的最后一个[`SyntaxToken`](#语法tokensyntaxtoken)。
+
+* `Tree.Kind kind()`：获取这个节点的种类。
+
 
 #### 方法树`MethodTree`
 
-* `MethodTree.symbol()`：获取方法的签名，含有参数、返回值等信息
+* `ModifiersTree modifiers()`：获取方法的[修饰符树](#修饰符)。
 
-* `MethodTree.simpleName()`：获取方法名
+* `TypeParameters typeParameters()`：获取这个方法的泛型参数。
 
-* `MethodTree.parameters()`：获取这个方法的参数列表，类型是`List<VariableTree>`
+  `TypeParameters`是一个[`ListTree`](#列表树listtree)的子类，它的`openBracketToken()`和`closeBracketToken()`可以获取泛型参数的`<`和`>`的[语法token](#语法tokensyntaxtoken)，同时它可以使用所有[`ListTree`](#列表树listtree)的方法。
 
-* `MethodTree.parameterTypes()`：获取这个方法的参数类型列表，类型是`List<Type>`
+* `@Nullable TypeTree returnType()`：获取这个方法的返回值的[类型树](#类型树typetree)。
 
-* `MethodTree.typeParameters()`：获取这个方法的泛型参数列表，类型是`List<TypeParameterTree>`
+* `IdentifierTree simpleName()`：获取方法名的[标识符树](#标识符树identifiertree)。
 
-* `MethodTree.returnType()`：获取这个方法的返回值签名，类型是`TypeSymbol`；`MethodTree.returnType().type()`可以获取返回值的类型
+* `List<VariableTree> parameters()`：获取这个方法的参数列表，以一列[变量树](#变量树variabletree)的方式列出。
 
-* `MethodTree.metadata()`：获取这个方法的元数据，类型是`SymbolMetadata`，可以获取方法的注解等信息
+* `SyntaxToken throwsToken()`：获取这个方法的`throws`关键字的[语法token](#语法tokensyntaxtoken)。
 
-* `MethodTree.block()`：获取方法的内容，类型是`BlockTree`；通过`BlockTree.body()`可以获取一列语句，类型是`List<StatementTree>`；`StatementTree`有一系列不同的实现类，比如`AssertStatementTree`、`ReturnStatementTree`、`IfStatementTree`，`ForEachStatementTree`等等
+* `ListTree<TypeTree> throwsClauses()`：获取`throws`后面跟着的异常的[类型树](#类型树typetree)，以[列表树](#列表树listtree)的方式列出。
+
+* `@Nullable BlockTree block()`：以[块树](#块树blocktree)的方式获取这个方法的内容。
+
+* `@Nullable SyntaxToken defaultToken()`：获取这个方法的`default`关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `@Nullable SyntaxToken openParenToken()`：获取这个方法的左括号的[语法token](#语法tokensyntaxtoken)。
+
+* `@Nullable SyntaxToken closeParenToken()`：获取这个方法的右括号的[语法token](#语法tokensyntaxtoken)。
+
+* `Symbol.MethodSymbol symbol()`：获取这个方法的[符号](#符号symbol)。
+
 
 #### 类树`ClassTree`
 
@@ -56,6 +73,7 @@ Sonar通过遍历语法树的形式来进行代码检查
 
 * `ClassTree.typeParameters()`：获取类的泛型参数列表，类型是`List<TypeParameterTree>`
 
+
 #### 变量树`VariableTree`
 
 * `VariableTree.modifiers()`：获取变量的修饰符，类型是`ModifierKeywordTree`；`ModifierKeywordTree.keyword()`可以获取修饰符的名称
@@ -66,11 +84,12 @@ Sonar通过遍历语法树的形式来进行代码检查
 
 * `VariableTree.symbol()`：获取变量的符号，类型是`Symbol.VariableSymbol`；`VariableTree.symbol().type()`和`VariableTree.type().symbolType()`是等价的
 
+
 #### 表达式树`ExpressionTree`
 
 `ExpressionTree`有一系列不同的实现类，比如`LiteralTree`、`MemberSelectExpressionTree`、`NewClassTree`、`MethodInvocationTree`等等
 
-通常可以通过`ExpressionTree.kind()`判断表达式树的精确类型，然后强制转换为对应的类型；或者通过`ExpressionTree.firstToken()`和`ExpressionTree.lastToken()`取得表达式部分token，进一步获得token的位置
+通常可以通过`ExpressionTree.kind()`判断表达式树的精确种类，然后强制转换为对应的种类；或者通过`ExpressionTree.firstToken()`和`ExpressionTree.lastToken()`取得表达式部分token，进一步获得token的位置
 
 * `ExpressionTree.symbolType()`：表达式的值的类型
 
@@ -91,6 +110,7 @@ Sonar通过遍历语法树的形式来进行代码检查
 ##### `ArrayAccessExpressionTree`
 
 ##### `MemberSelectExpressionTree`
+
 
 #### 语句树`StatementTree`
 
@@ -160,17 +180,20 @@ Sonar通过遍历语法树的形式来进行代码检查
 
 * `BlockTree.body()`：获取块的内容，类型是`List<StatementTree>`
 
+
 ##### 常量树`LiteralTree`
 
 * `LiteralTree.value()`：获取常量的值，以字符串表示
 
 * `LiteralTree.token()`：获取常量的token，类型是`SyntaxToken`；`SyntaxToken.text()`可以获取token的文本，等价于`LiteralTree.value()`
 
+
 #### 标识符树`IdentifierTree`
 
 * `IdentifierTree.name()`：标识符的名称，类型是`String`
 
 * `IdentifierTree.symbol()`：标识符的符号
+
 
 ##### 调用方法树`MethodInvocationTree`
 
@@ -179,61 +202,233 @@ Sonar通过遍历语法树的形式来进行代码检查
 
 #### 注解树`AnnotationTree`
 
-* `AnnotationTree.annotationType()`：获取注解的类型，类型是`TypeTree`；`TypeTree.symbolType()`可以转换为`Type`类型
+* `TypeTree annotationType()`：获取注解的类型；`TypeTree.symbolType()`可以转换为`Type`类型
 
-* `AnnotationTree.arguments()`：获取注解的参数，类型是`ListTree<ExpressionTree>`；`ListTree<ExpressionTree>`中包含一列`ExpressionTree`形式的参数
+* `ListTree<ExpressionTree> arguments()`：获取注解的参数；`ListTree<ExpressionTree>`中包含一列`ExpressionTree`形式的参数
+
+
+#### 修饰符树`ModifiersTree`
+
+父类：[`ListTree`](#列表树listtree)
+
+表示一系列的修饰符。
+
+`ModifiersTree`是`ListTree`的子类，可以直接当作一个包含`ModifierTree`的`List`来使用。
+
+* `List<AnnotationTree> annotations()`：获取修饰符中的注解，注解以一列[注解树](#注解树annotationtree)的方式列出。
+
+* `List<ModifierKeywordTree> modifiers()`：获取列表中的修饰符，修饰符以一列[修饰符关键字树](#修饰符关键字树modifierkeywordtree)的方式列出。
+
+  用这个方法和直接把`ModifiersTree`当作`List`使用的区别是`List`中元素的类型。这个方法返回的是[`ModifierKeywordTree`](#修饰符关键字树modifierkeywordtree)，而直接当作`List`返回的则是`ModifierTree`。
+
+
+#### 修饰符关键字树`ModifierKeywordTree`
+
+父类：`ModifierTree`（`ModifierTree`相比它的父类[`Tree`](#树tree)没有任何新加的方法）
+
+* `Modifier modifier()`：获取修饰符的类型。
+
+  `Modifier`是一个枚举类，包含了所有修饰符的类型。
+
+* `SyntaxToken keyword()`：获取修饰符的[语法token](#语法tokensyntaxtoken)。
+
+
+#### 列表树`ListTree`
+
+父类：[`Tree`](#树tree)、`List`
+
+`ListTree`既能当作[`Tree`](#树tree)使用，也能当作`List`使用。
+
+* `List<SyntaxToken> separators()`：获取列表中的分隔符，分隔符以一列[语法token](#语法tokensyntaxtoken)的方式列出。
+
+  例如`ListTree`中有`a`、`b`、`c`三个元素，那么`separators()`返回的就是`a`和`b`之间的分隔符以及`b`和`c`之间的分隔符。
+
+
+#### 类型树`TypeTree`
+
+父类：[`Tree`](#树tree)
+
+把节点的类型用树的方式存储。相比起[类型](#类型type)，类型树包含了更丰富的信息。
+
+* `Type symbolType()`：获取类型树代表的[类型](#类型type)。
+
+* `List<AnnotationTree>`：获取类型树的注解，注解以一列[注解树](#注解树annotationtree)的方式列出。
+
 
 
 ### 类型`Type`
 
-类型是把Java中的类型转换为语法树元素的来的，内置了多种判断类型的方法，常用于判断节点的类型；除此之外用处并不大
+父类：无
 
-注意此处的类型和[`Tree.Kind`](#树tree)中的类型不是同一个东西：此处的类型是Java中的类型，[`Tree.Kind`](#树tree)中的类型是语法树中的类型
+类型是把Java中的类型转换为语法树元素得来的，内置了多种判断类型的方法，常用于判断节点的类型；除此之外用处并不大。
 
-#### 对比类型
+注意此处的类型`Type`和[`Tree.Kind`](#树tree)中的种类不是同一个东西：此处的类型是Java中的类型，[`Tree.Kind`](#树tree)中的种类是语法树中的种类。
 
-* 对比类型时不能直接对类型用`==`或`equals`，而要用`Type.is()`，参数是另一个类型的名称的字符串
+`Type`下有`Type.Primitives`枚举类，包含了所有Java的基本类型。
 
-  例：`myType.is("java.lang.String")`
+* `boolean is(String var1)`：判断类型是否是`var1`，`var1`是另一个类型的名称的字符串
 
-  例：`myType.is(anotherType.fullyQualifiedName())`
+  对比类型时要用这个方法，而不能直接对类型用`==`或`equals`。
 
-* 或者取两者类型的名称字符串，然后用`equals`比较
+  例：`myType.is("java.lang.String")`。
 
-  例：`myType.fullyQualifiedName().equals("java.lang.String")`
+* `boolean is...()`：对类型进行判断，比如`isClass()`、`isPrimitive()`、`isArray()`等等。
 
-  例：`myType.fullyQualifiedName().equals(anotherType.fullyQualifiedName())`
+* `boolean isSubtypeOf(String var1)`：判断类型是否是`var1`的子类型，`var1`是另一个类型的名称的字符串。
+
+* `boolean isSubtypeOf(Type var1)`：判断类型是否是`var1`的子类型，`var1`是另一个类型。
+
+* `String fullyQualifiedName()`：获取类型的全名，例如`java.lang.String`。
+
+* `String name()`：获取类型的名称。
+
+* `Symbol.TypeSymbol symbol()`：获取类型的[类型符号](#类型符号typesymbol)。
+
+* `Type erasure()`：获取类型的擦除类型。
+
+* `boolean isParameterized()`：判断类型是否是参数化类型（即泛型）。
+
+* `List<Type> typeArguments()`：获取类型的参数类型列表。
+
+
+#### 数组类型`ArrayType`
+
+父类：[`Type`](#类型Type)
+
+* `Type elementType()`：获取数组元素的类型。
+
 
 
 ### 符号`Symbol`
 
-符号表示一个方法、类、变量等等的签名；有类似的类`LabelSymbol`和三个子类`MethodSymbol`、`VariableSymbol`、`TypeSymbol`
+父类：无
 
-* `Symbol.name()`：获取符号的名称，类型是`String`
+符号表示一个方法、类、变量等等的签名信息。
 
-* `Symbol.type()`：获取符号的类型，类型是`Type`
+`Symbol`有一个类似的类[`LabelSymbol`](#标签符号labelsymbol)，三个子类[`MethodSymbol`](#方法符号methodsymbol)、[`VariableSymbol`](#变量符号variablesymbol)、[`TypeSymbol`](#类型符号typesymbol)，和一个相关的类[`SymbolMetadata`](#符号元数据symbolmetadata)。
 
-* `Symbol.is...()`：判断符号的类型，比如`Symbol.isMethodSymbol()`、`Symbol.isVariableSymbol()`、`Symbol.isTypeSymbol()`等等；也可以判断符号的属性，比如`Symbol.isPublic()`、`Symbol.isPrivate()`、`Symbol.isStatic()`等等
+* `String name()`：获取符号的名称。
 
-* `Symbol.metadata()`：获取符号的元数据，类型是`SymbolMetadata`，可以获取符号的注解等信息
+* `Type type()`：获取符号的[类型](#类型type)。
 
-* `Symbol.usages()`：获取符号的使用列表，类型是`List<IdentifierTree>`，可以获取符号的使用位置
+* `boolean is...()`：判断符号的类型，比如`isMethodSymbol()`、`isVariableSymbol()`、`isTypeSymbol()`等等；也可以判断符号的属性，比如`isPublic()`、`isPrivate()`、`isStatic()`等等。
+
+* `SymbolMetadata metadata()`：获取符号的[符号元数据](#符号元数据symbolmetadata)，可以获取符号的注解等信息。
+
+* `List<IdentifierTree> usages()`：获取符号的使用列表，为一个[标识符](#标识符树identifiertree)列表。
+
+  通过[`IdentifierTree`](#标识符树IdentifierTree)的`identifierToken()`可以获取符号每处的[语法token](#语法tokensyntaxtoken)，进而获得token的位置。
+
+* `Tree declaration()`：符号的声明，在各子类中有对应重载的方法。
+
+
+#### 方法符号`MethodSymbol`
+
+父类：[`Symbol`](#符号Symbol)
+
+* `List<Type> parameterTypes()`：获取方法的参数[类型](#类型type)列表。
+
+* `TypeSymbol returnType()`：获取方法的返回值[类型符号](#类型符号TypeSymbol)。
+
+* `List<Type> thrownTypes()`：获取方法抛出的异常中的[类型](#类型type)列表。
+
+* `List<MethodSymbol> overriddenSymbols()`：获取方法的重写[方法符号](#方法符号methodsymbol)列表。
+
+* `String signature()`：获取方法的签名。
+
+* `@Nullable MethodTree declaration()`：以[方法树](#方法树methodtree)的形式，获取方法的声明。
+
+
+#### 变量符号`VariableSymbol`
+
+父类：[`Symbol`](#符号Symbol)
+
+* `@Nullable VariableTree declaration()`：以[变量树](#变量树variableTree)的形式，获取变量的声明。
+
+
+#### 类型符号`TypeSymbol`
+
+父类：[`Symbol`](#符号Symbol)
+
+用于类（`class`）的符号。
+
+* `@CheckForNull Type superClass()`：获取类型的父[类型](#类型type)。
+
+* `List<Type> interfaces()`：获取类型实现的接口[类型](#类型type)列表。
+
+* `Collection<Symbol> memberSymbols()`：获取类型的成员[符号](#符号symbol)列表。
+
+* `Collection<Symbol> lookupSymbols(String var1);`：在类型的成员中搜索名称为`var1`的[符号](#符号symbol)并返回匹配。
+
+* `@Nullable ClassTree declaration()`：以[类树](#类树classtree)的形式，获取类型的声明。
+
+
+#### 标签符号`LabelSymbol`
+
+父类：无
+
+注意`LabelSymbol`不是`Symbol`的子类，而是`Symbol`的另一个类似类，所以它无法使用`Symbol`的方法。
+
+* `String name()`：获取标签的名称。
+
+* `List<IdentifierTree> usages()`：获取标签的使用，为一个[标识符](#标识符树identifiertree)列表。
+
+* `@Nullable LabeledStatementTree declaration()`：获取标签的声明。
+
+
+#### 符号元数据`SymbolMetadata`
+
+父类：无
+
+表示符号的元数据，用于获取符号的注解信息。
+
+`SymbolMetadata`中定义了两个接口，`AnnotationInstance`和`AnnotationValue`，分别用于获取单个注解和单个注解的值。
+
+* `boolean isAnnotatedWith(String annotationName)`：判断符号是否被`annotationName`注解了。
+
+* `@CheckForNull List<AnnotationValue> valuesForAnnotation(String annotationName)`：获取符号被`annotationName`注解的值。
+
+* `List<AnnotationInstance> annotations()`：获取符号的所有[注解实例](#注解实例annotationinstance)。
+
+##### 注解实例`AnnotationInstance`
+
+父类：无
+
+表示一个注解。
+
+* `Symbol symbol()`：获取注解的[符号](#符号symbol)。
+
+* `List<AnnotationValue> values()`：获取[注解值](#注解值annotationvalue)列表。
+
+##### 注解值`AnnotationValue`
+
+父类：无
+
+表示一个注解值（包括key和value）。
+
+* `String name()`：获取注解值的键值（key）。
+
+* `Object value()`：获取注解值的值（value）。
 
 
 ### 语法token`SyntaxToken`
 
-一个`SyntaxToken`表示一个词语或者符号，比如`return`、`String`、`==`、`+`、`{`、`}`等等。使用token可以有效检查代码格式，比如判断是否有空格、是否有换行等等。token也是SonarJava中获取代码源文本的唯一方式
+父类：[`Tree`](#树Tree)
 
-* `SyntaxToken.text()`：token的原文本
+一个`SyntaxToken`表示一个词语或者符号，比如`return`、`String`、`==`、`+`、`{`、`}`等等。使用token可以有效检查代码格式，比如判断是否有空格、是否有换行等等。token也是SonarJava中获取代码源文本以及文本位置的唯一方式。
 
-* `SyntaxToken.line()`：token所在的行数
+* `String text()`：token的原文本。
 
-* `SyntaxToken.column()`：token所在的列数
+* `int line()`：token所在的行数。
+
+* `int column()`：token所在的列数。
+
+
 
 
 ## 自定义规则
 
-以下的文件中，[规则Java文件](#规则java文件)和[描述性HTML和JSON文件](#描述性html和json文件)是必须的，[测试文件](#测试文件)可选但强烈推荐
+以下的文件中，[规则Java文件](#规则java文件)和[描述性HTML和JSON文件](#描述性html和json文件)是必须的，[测试文件](#测试文件)和[规则示例文件](#规则示例文件可选若写测试则必需)可选但强烈推荐。
 
 ### 插件项目结构
 
@@ -281,14 +476,15 @@ SonarQube的Java自定义规则是通过插件来实现的。插件是一个完�
 每新增一个规则，都需要在`/src/main/java/package路径/RulesList.java`的`getJavaChecks()`方法或`getJavaTestChecks()`方法中添加这个规则的类。如果有测试，则同时需要在`/src/test/java/package路径/MyJavaFileCheckRegistrarTest.java`的`checkNumberRules()`方法中修改规则的总数量。
 
 
-完成规则构建后，用`mvn clean package`命令打包，把生成的jar包放到SonarQube的`$SONAR_HOME/extensions/plugins`目录下，重启SonarQube即可
+完成规则构建后，用`mvn clean package`命令打包，把生成的jar包放到SonarQube的`$SONAR_HOME/extensions/plugins`目录下，重启SonarQube即可。
+
 
 
 ### 规则Java文件
 
 #### `IssuableSubscriptionVisitor`类
 
-如果只需要检测少量几种语法树，而且不同语法树之间互不影响，则可以用`IssuableSubscriptionVisitor`，这个类只需要实现`visitNode`和`nodesToVisit`方法即可
+如果只需要检测少量几种语法树，而且不同语法树之间互不影响，则可以用[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)，这个类只需要实现`visitNode`和`nodesToVisit`方法即可。
 
 ```
 package package路径.checks;
@@ -306,7 +502,7 @@ public class 自定义规则类 extends IssuableSubscriptionVisitor {
   // 需要检查哪些类型的语法树
   @Override
   public List<Tree.Kind> nodesToVisit() {
-    return Arrays.asList(语法树类型，例如Tree.Kind.METHOD，可输入多个);
+    return Arrays.asList(语法树种类，例如Tree.Kind.METHOD，可输入多个);
   }
 
   // 对单个语法树进行检测（比如单个方法、类等等）
@@ -334,9 +530,10 @@ public class 自定义规则类 extends IssuableSubscriptionVisitor {
 }
 ```
 
+
 #### `BaseTreeVisitor`类
 
-如果需要更复杂的检测，则可以用`BaseTreeVisitor`和`JavaFileScanner`，这个类需要实现`scanFile`方法并按需重载一些检测语法树的方法
+如果需要更复杂的检测，则可以用[`BaseTreeVisitor`](#basetreevisitor类)和`JavaFileScanner`，这个类需要实现`scanFile`方法并按需重载一些检测语法树的方法。注意使用这个类报告问题时，`reportIssue()`是由`JavaFileScannerContext`调用的，而不是[`BaseTreeVisitor`](#basetreevisitor类)。
 
 ```
 package package路径.checks;
@@ -393,11 +590,12 @@ public class 自定义规则类 extends BaseTreeVisitor implements JavaFileScann
 ```
 
 
+
 ### 描述性HTML和JSON文件
 
 #### HTML
 
-HTML文件是这个规则在SonarQube管理页面中展示的内容
+HTML文件是这个规则在SonarQube管理页面中展示的内容。
 
 ```
 <!DOCTYPE html>
@@ -422,9 +620,10 @@ HTML文件是这个规则在SonarQube管理页面中展示的内容
 </html>
 ```
 
+
 #### JSON
 
-JSON文件描述这个规则的属性，比如类型、标签、严重性等等
+JSON文件描述这个规则的属性，比如类型、标签、严重性等等。
 
 ```
 {
@@ -441,6 +640,7 @@ JSON文件描述这个规则的属性，比如类型、标签、严重性等等
   "defaultSeverity": 严重性，可选"Minor"、"Major"、"Critical"、"Blocker",
 }
 ```
+
 
 
 ### 规则示例文件（可选，若写测试则必需）
@@ -461,12 +661,13 @@ class 随便取类名 {
 }
 ```
 
-如果错误地标记了行，则测试时会报错`java.lang.AssertionError`
+如果错误地标记了行，则测试时会报错`java.lang.AssertionError`。
+
 
 
 ### 测试文件（可选）
 
-一个测试文件可以测试多个[规则示例文件](#规则示例文件)
+一个测试文件可以测试多个[规则示例文件](#规则示例文件)。
 
 ```
 package package路径.checks;
@@ -501,21 +702,30 @@ public class 测试文件名 {
 
 
 
+
 ## SonarQube自定义规则范例
 
-所有规则均来源于[Java开发手册](https://github.com/alibaba/p3c)
+所有规则均来源于[Java开发手册](https://github.com/alibaba/p3c)。
 
 ### 编程规约
 
 #### 1.1.1 【强制】代码中的命名均不能以下划线或美元符号开始，也不能以下划线或美元符号结束。
 
-由于命名规范多用于类、方法和变量的命名，这里考虑遍历这三者的语法树。这里需要遍历多种语法树，但语法树之间互不影响，所以`BaseTreeVisitor`和`IssueSubscriptionVisitor`都可以用
+由于命名规范多用于类、方法和变量的命名，这里考虑遍历这三者的语法树。这里需要遍历多种语法树，但语法树之间互不影响，所以[`BaseTreeVisitor`](#basetreevisitor类)和[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)都可以用。
 
-使用`BaseTreeVisitor`的规则文件：
+使用[`BaseTreeVisitor`](#basetreevisitor类)的规则文件：
 
 使用到的类和方法：
-* `BaseTreeVisitor`、`visitClass()`、`visitMethod()`、`visitVariable()`
-* `ClassTree.simpleName()`、`MethodTree.simpleName()`、`VariableTree.simpleName()`
+
+* [`BaseTreeVisitor`](#basetreevisitor类)：`visitClass()`、`visitMethod()`、`visitVariable()`
+
+* `JavaFileScannerContext`：`reportIssue()`、`getTree()`
+
+* [`ClassTree`](#类树classtree)：`simpleName()`
+
+* [`MethodTree`](#方法树methodtree)：`simpleName()`
+
+* [`VariableTree`](#变量树variabletree)：`simpleName()`
 
 ```
 package org.sonar.samples.java.checks;
@@ -572,11 +782,17 @@ public class JavaDevRuleCheck extends BaseTreeVisitor implements JavaFileScanner
 }
 ```
 
-使用`IssueSubscriptionVisitor`的规则文件：
+使用[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)的规则文件：
 
 使用到的类和方法：
-* `IssueSubscriptionVisitor`、`visitNode()`、`nodesToVisit()`
-* `ClassTree.simpleName()`、`MethodTree.simpleName()`、`VariableTree.simpleName()`
+
+* [`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)：`visitNode()`、`nodesToVisit()`、`reportIssue()`
+
+* [`ClassTree`](#类树classtree)：`simpleName()`
+
+* [`MethodTree`](#方法树methodtree)：`simpleName()`
+
+* [`VariableTree`](#变量树variabletree)：`simpleName()`
 
 ```
 package org.sonar.samples.java.checks;
@@ -626,13 +842,20 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 }
 ```
 
+
 #### 1.1.6 【强制】常量命名应该全部大写，单词间用下划线隔开，力求语义表达完整清楚，不要嫌名字长。
 
-检测单词间是否用下划线隔开比较困难，需要识别单个单词，这里只检测常量（即`final`修饰的变量）命名是否全部大写。由于只检测变量，这里选择使用`IssuableSubscriptionVisitor`。
+检测单词间是否用下划线隔开比较困难，需要识别单个单词，这里只检测常量（即`final`修饰的变量）命名是否全部大写。由于只检测变量，这里选择使用[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)。
 
 使用到的类和方法：
-* `IssuableSubscriptionVisitor`、`visitNode()`、`nodesToVisit()`
-* `VariableTree.simpleName()`、`VariableTree.modifiers()`、`ModifiersTree.modifiers()`、`ModifierKeywordTree.modifier()`
+
+* [`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)：`visitNode()`、`nodesToVisit()`、`reportIssue()`
+
+* [`VariableTree`](#变量树variabletree)：`simpleName()`、`modifiers()`
+
+* [`ModifiersTree`](#修饰符树modifierstree)：`modifiers()`
+
+* [`ModifierKeywordTree`](#修饰符关键字树modifierkeywordtree)：`modifier()`
 
 ```
 package org.sonar.samples.java.checks;
@@ -676,17 +899,28 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 }
 ```
 
+
 #### 1.1.11 【强制】避免在子父类的成员变量之间、或者不同代码块的局部变量之间采用完全相同的命名，使可理解性降低。
 
-由于只遍历类树，这里选择使用`IssuableSubscriptionVisitor`。
+由于只遍历类树，这里选择使用[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)。
 
 注意SonarJava并不支持查找类的子类，查找父类时也仅支持取得父类的类型（即类名），所以需要自己实现子类的父类的对应关系。这里选择使用两个`Map`，`CLASS_FIELDS`存储一个类的名字和它的所有类变量名，`PARENT_TO_CHILDREN`存储一个类的名字和它的所有子类的名字。
 
-如果需要测试这个规则，在规则示例中，`// Noncompliant`注解需要写在类定义的后面，因为这里是在类树中`reportIssue()`
+如果需要测试这个规则，在规则示例中，`// Noncompliant`注解需要写在类定义的后面，因为这里是在类树中`reportIssue()`。
 
 使用到的类和方法：
-* `IssuableSubscriptionVisitor`、`visitNode()`、`nodesToVisit()`
-* `ClassTree.symbol().name()`、`ClassTree.members()`、`ClassTree.superClass()`、`VariableTree.simpleName().name()`、`TypeTree.symbolType().name()`
+
+* [`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)：`visitNode()`、`nodesToVisit()`、`reportIssue()`
+
+* [`ClassTree`](#类树classtree)：`symbol()`、`members()`、`superClass()`
+
+* [`VariableTree`](#变量树variabletree)：`simpleName()`
+
+* [`TypeTree`](#类型树typetree)：`symbolType()`
+
+* [`Symbol`](#符号symbol)：`name()`
+
+* [`Type`](#类型type)：`name()`
 
 ```
 package org.sonar.samples.java.checks;
@@ -775,6 +1009,9 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 }
 ```
 
+
 #### 1.2.2 【强制】long 或 Long 赋值时，数值后使用大写 L，不能是小写 l，小写容易跟数字混淆，造成误解。
 
+
 #### 1.3.2 【强制】左小括号和右边相邻字符之间不需要空格；右小括号和左边相邻字符之间也不需要空格；而左大括号前需要加空格。
+
