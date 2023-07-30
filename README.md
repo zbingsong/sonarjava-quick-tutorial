@@ -17,6 +17,8 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 `Tree`下有`Tree.Kind`枚举类，包含了所有树节点的种类。注：后面会遇到[类型`Type`](#类型type)，和`Tree.Kind`不是同一个东西。为做区分，将`Tree.Kind`称为种类，将[`Type`](#类型type)称为类型。
 
+`Tree`可以大致分为[表达式树`ExpressionTree`](#表达式树expressiontree)、[语句树`StatementTree`](#语句树statementtree)、[类型树`TypeTree`](#类型树typetree)、[列表树`ListTree`](#列表树listtree)、[模组命令树`ModuleDirectiveTree`](#模组命令树moduledirectivetree)（**Java 9**）和其它树。
+
 * `boolean is(Kind... var1)`：判断这个节点的种类，比如`Tree.Kind.METHOD`、`Tree.Kind.CLASS`等；一次可传入多个类型，如果有一个种类匹配则返回`true`。
 
 * `@Nullable Tree parent()`：获取父节点。
@@ -28,9 +30,374 @@ Sonar通过遍历语法树的形式来进行代码检查。
 * `Tree.Kind kind()`：获取这个节点的种类。
 
 
+#### 表达式树`ExpressionTree`
+
+父类：[`Tree`](#树tree)
+
+`ExpressionTree`有一系列不同的实现类，比如`LiteralTree`、`MemberSelectExpressionTree`、`NewClassTree`、`MethodInvocationTree`等等。
+
+* `Type symbolType()`：表达式的值的[类型](#类型type)。
+
+* `Optional<Object> asConstant()`：获取表达式的值。
+
+* `<T> Optional<T> asConstant(Class<T> var1)`：获取表达式的值，以`var1`的类型返回。
+
+
+#### 注解树`AnnotationTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree)、[`ModifierTree`](#修饰符树modifiertree)
+
+之后会遇到功能相似的[`SymbolMetadata`](#符号元数据symbolmetadata)。`AnnotationTree`和[`SymbolMetadata`](#符号元数据symbolmetadata)的区别在于，`AnnotationTree`的本质是树，可以以树的形式进行自定义的遍历（`AnnotationTree`的父节点是[`ModifierTree`](#修饰符树modifiertree)），而[`SymbolMetadata`](#符号元数据symbolmetadata)可以比较方便地获得注解参数的key和value。
+
+* `SyntaxToken atToken()`：获取注解`@`字符的[语法token](#语法tokensyntaxtoken)。
+
+* `TypeTree annotationType()`：获取注解的[类型树](#类型树typetree)。
+
+* `Arguments arguments()`：获取注解的参数。
+
+  `Arguments`是[`ListTree`](#列表树listtree)的子类，元素类型为[`ExpressionTree`](#表达式树expressiontree)。有获取左右括号的[`SyntaxToken`](#语法tokensyntaxtoken)的方法`openParenToken()`和`closeParenToken()`。
+
+
+#### `ArrayAccessExpressionTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree) 
+
+通过下标访问数组的元素的表达式，例如`arr[1]`。
+
+* `ExpressionTree expression()`：获取数组访问的[表达式](#表达式树expressiontree)。
+
+* `ArrayDimensionTree dimension()`：获取数组的[长度](#arraydimensiontree)。
+
+
+#### `AssignmentExpressionTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree) 
+
+* `ExpressionTree variable()`：获取赋值的左边的[表达式](#表达式树expressiontree)。
+
+* `SyntaxToken operatorToken()`：获取赋值的运算符的[语法token](#语法tokensyntaxtoken)。
+
+* `ExpressionTree expression()`：获取赋值的右边的[表达式](#表达式树expressiontree)。
+
+
+#### `UnaryExpressionTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree) 
+
+* `SyntaxToken operatorToken()`：获取运算符的[语法token](#语法tokensyntaxtoken)。
+
+* `ExpressionTree expression()`：获取运算符后的[表达式](#表达式树expressiontree)。比如对于`int a = -1`，这个方法取到的是`1`。
+
+
+#### `BinaryExpressionTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree) 
+
+* `ExpressionTree leftOperand()`：获取左操作数的[表达式](#表达式树expressiontree)。
+
+* `SyntaxToken operatorToken()`：获取运算符的[语法token](#语法tokensyntaxtoken)。
+
+* `ExpressionTree rightOperand()`：获取右操作数的[表达式](#表达式树expressiontree)。
+
+
+#### `ConditionalExpressionTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree) 
+
+代表三元运算符`?:`的表达式，即`a ? b : c`。
+
+* `ExpressionTree condition()`：获取条件的[表达式](#表达式树expressiontree)。
+
+* `SyntaxToken questionToken()`：获取问号的[语法token](#语法tokensyntaxtoken)。
+
+* `ExpressionTree trueExpression()`：获取条件为真时的[表达式](#表达式树expressiontree)。
+
+* `SyntaxToken colonToken()`：获取冒号的[语法token](#语法tokensyntaxtoken)。
+
+* `ExpressionTree falseExpression()`：获取条件为假时的[表达式](#表达式树expressiontree)。
+
+
+#### `InstanceOfTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree) 
+
+* `ExpressionTree expression()`：获取被判断的部分的[表达式](#表达式树expressiontree)（即`instanceof`之前的部分）。
+
+* `SyntaxToken instanceofToken()`：获取`instanceof`关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `TypeTree type()`：获取判断的[类型树](#类型树typetree)（即`instanceof`之后的部分）。
+
+
+#### `LambdaExpressionTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree)
+
+* `@Nullable SyntaxToken openParenToken()`：获取左括号的[语法token](#语法tokensyntaxtoken)。
+
+* `@Nullable SyntaxToken closeParenToken()`：获取右括号的[语法token](#语法tokensyntaxtoken)。
+
+* `List<VariableTree> parameters()`：获取lambda表达式的参数列表，以一列[变量树](#变量树variabletree)的方式列出。
+
+* `SyntaxToken arrowToken()`：获取箭头的[语法token](#语法tokensyntaxtoken)。
+
+* `Tree body()`：获取lambda表达式的主体。
+
+
+##### 常量树`LiteralTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree)
+
+* `String value()`：获取常量的值。
+
+* `SyntaxToken token()`：获取常量的[语法token](#语法tokensyntaxtoken)。
+
+
+#### `MemberSelectExpressionTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree) 、[`TypeTree`](#类型树typetree)
+
+
+#### 调用方法树`MethodInvocationTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree)
+
+
+#### `MethodReferenceTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree)
+
+
+#### `NewArrayTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree)
+
+
+#### `NewClassTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree)
+
+
+#### `ParenthesizedTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree)
+
+
+#### `TypeCastTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree)
+
+
+#### `SwitchExpressionTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree)
+
+
+#### `TypeCastTree`
+
+父类：[`ExpressionTree`](#表达式树expressiontree)
+
+
+#### 语句树`StatementTree`
+
+父类：[`Tree`](#树tree)
+
+`StatementTree`本身并没有用，也没有`Tree`之外的方法。
+
+它有一系列不同的子类，比如`AssertStatementTree`、`ReturnStatementTree`、`IfStatementTree`，`ForEachStatementTree`等等。
+
+
+#### Assert语句树`AssertStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree) 
+
+* `SyntaxToken assertKeyword()`：获取assert关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `ExpressionTree condition()`：获取assert语句的条件[表达式](#表达式树expressiontree)。
+
+* `@Nullable SyntaxToken colonToken()`：获取冒号的[语法token](#语法tokensyntaxtoken)。
+
+* `@Nullable ExpressionTree detail()`：获取assert语句的详细信息，即冒号后面的表达式。
+
+* `SyntaxToken semicolonToken()`：获取分号的[语法token](#语法tokensyntaxtoken)。
+
+
+#### Break语句树`BreakStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree) 
+
+`breakKeyword()`
+
+
+#### 类树`ClassTree`
+
+父类：[`StatementTree`](#语句树statementtree) 
+
+* `@Nullable SyntaxToken declarationKeyword()`：获取类的声明关键字的[语法token](#语法tokensyntaxtoken)。例如`public`、`private`、`protected`等等。
+
+* `@Nullable SyntaxToken simpleName()`：获取类名的[语法token](#语法tokensyntaxtoken)。
+
+* `TypeParameters typeParameters()`：获取类的泛型参数列表。
+
+  `TypeParameters`是一个[`ListTree`](#列表树listtree)的子类，元素类型是[类型参数树](#类型参数树typeparametertree)，它的`openBracketToken()`和`closeBracketToken()`可以获取泛型参数的`<`和`>`的[语法token](#语法tokensyntaxtoken)，同时它可以使用所有[`ListTree`](#列表树listtree)的方法。
+
+* `ModifiersTree modifiers()`：获取类的修饰符列表，用[多修饰符树](#多修饰符树modifierstree)的方式列出。
+
+* `@Nullable TypeTree superClass()`：获取父类的[类型树](#类型树typetree)。
+
+* `Symbol.TypeSymbol symbol()`：获取类的[类型符号](#类型符号typesymbol)。
+
+* `ListTree<TypeTree> superInterfaces()`：获取类的接口列表，以[列表树](#列表树listtree)的方式列出，元素类型是[类型树](#类型树typetree)。
+
+* `List<Tree> members()`：获取类的成员列表，以一列[树](#树tree)的方式列出。
+
+* `SyntaxToken openBraceToken()`：获取左大括号的[语法token](#语法tokensyntaxtoken)。
+
+* `SyntaxToken closeBraceToken()`：获取右大括号的[语法token](#语法tokensyntaxtoken)。
+
+
+#### Continue语句树`ContinueStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree)
+
+
+#### Do-While语句树`DoWhileStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree)
+
+
+#### 空语句树`EmptyStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree)
+
+
+#### 表达式语句树`ExpressionStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree)
+
+
+#### For-Each语句树`ForEachStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree)
+
+
+#### For语句树`ForStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree)
+
+
+#### If语句树`IfStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree) 
+
+* `SyntaxToken ifKeyword()`：获取if关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `SyntaxToken openParenToken()`：获取左括号的[语法token](#语法tokensyntaxtoken)。
+
+* `SyntaxToken closeParenToken()`：获取右括号的[语法token](#语法tokensyntaxtoken)。
+
+* `ExpressionTree condition()`：获取if语句的条件[表达式](#表达式树expressiontree)。
+
+* `StatementTree thenStatement()`：获取if语句的代码块（即如果if条件为真时会执行的语句）。
+
+  _不理解为何这个方法返回的是`StatementTree`而不是`BlockTree`，很明显if语句后的代码块是一个块而不是一个语句_
+
+* `@Nullable SyntaxToken elseKeyword()`：获取else关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `@Nullable StatementTree elseStatement()`：获取else语句的代码块（即如果if条件为假时会执行的语句）。
+
+  _不理解为何这个方法返回的是`StatementTree`而不是`BlockTree`，很明显else语句后的代码块是一个块而不是一个语句_
+
+
+#### Labeled语句树`LabeledStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree)
+
+
+#### Return语句树`ReturnStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree)
+
+
+##### `SwitchStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree) 
+
+`switchKeyword()`、`openParenToken()`、`expression()`、`closeParenToken()`、`openBraceToken()`、`cases()`、`closeBraceToken()`
+
+本身没有方法，所用的方法全部来自于`SwitchTree`
+
+
+#### `SynchronizedStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree) 
+
+`synchronizedKeyword()`、`openParenToken()`、`expression()`、`closeParenToken()`、`block()`
+
+
+#### `ThrowStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree) 
+
+`throwKeyword()`、`expression()`
+
+
+#### `TryStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree) 
+
+`tryKeyword()`、`openParenToken()`、`closeParenToken()`、`resourceList()`、`block()`、`catches()`、`finallyKeyword()`、`finallyBlock()`
+
+
+#### `WhileStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree) 
+
+`whileKeyword()`、`openParenToken()`、`condition()`、`closeParenToken()`、`statement()`
+
+
+#### `YieldStatementTree`
+
+父类：[`StatementTree`](#语句树statementtree) 
+
+`yieldKeyword()`、`expression()`
+
+
+#### 变量树`VariableTree`
+
+父类：[`StatementTree`](#语句树statementtree)
+
+* `VariableTree.modifiers()`：获取变量的修饰符，类型是`ModifierKeywordTree`；`ModifierKeywordTree.keyword()`可以获取修饰符的名称
+
+* `VariableTree.type()`：获取变量的类型，类型是`TypeTree`；`TypeTree.symbolType()`可以转换为`Type`类型
+
+* `VariableTree.simpleName()`：获取变量名，类型是`IdentifierTree`
+
+* `VariableTree.symbol()`：获取变量的符号，类型是`Symbol.VariableSymbol`；`VariableTree.symbol().type()`和`VariableTree.type().symbolType()`是等价的
+
+
+#### 块树`BlockTree`
+
+父类：[`StatementTree`](#语句树statementtree)
+
+使用`BlockTree`的树和方法很少。
+
+* `List<StatementTree> body()`：获取块的内容，以一列[语句树](#语句树statementtree)的方式列出。
+
+* `SyntaxToken openBraceToken()`：获取左大括号的[语法token](#语法tokensyntaxtoken)。
+
+* `SyntaxToken closeBraceToken()`：获取右大括号的[语法token](#语法tokensyntaxtoken)。
+
+
+#### 静态初始化块树`StaticInitializerTree`
+
+父类：[`BlockTree`](#块树blocktree)
+
+
 #### 方法树`MethodTree`
 
-* `ModifiersTree modifiers()`：获取方法的[修饰符树](#修饰符)。
+父类：[`Tree`](#树tree)
+
+* `ModifiersTree modifiers()`：获取方法的[多修饰符树](#多修饰符树modifierstree)。
 
 * `TypeParameters typeParameters()`：获取这个方法的泛型参数。
 
@@ -57,180 +424,109 @@ Sonar通过遍历语法树的形式来进行代码检查。
 * `Symbol.MethodSymbol symbol()`：获取这个方法的[符号](#符号symbol)。
 
 
-#### 类树`ClassTree`
+#### 类型树`TypeTree`
 
-* `ClassTree.simpleName()`：获取类名，类型是`IdentifierTree`
+父类：[`Tree`](#树tree)
 
-* `ClassTree.symbol()`：获取类的签名，含有类名、父类、接口、成员签名等信息
+把节点的类型用树的方式存储。相比起[类型](#类型type)，类型树包含了更丰富的信息。
 
-* `ClassTree.members()`：获取类的成员列表，类型是`List<Tree>` 
+* `Type symbolType()`：获取类型树代表的[类型](#类型type)。
 
-* `ClassTree.modifiers()`：获取类的修饰符，类型是`ModifierKeywordTree`
+* `List<AnnotationTree>`：获取类型树的注解，注解以一列[注解树](#注解树annotationtree)的方式列出。
 
-* `ClassTree.superClass()`：获取类的父类的类型，类型是`TypeTree`
 
-* `ClassTree.superInterfaces()`：获取类的接口列表，类型是`List<TypeTree>`
+#### 数组类型树`ArrayTypeTree`
 
-* `ClassTree.typeParameters()`：获取类的泛型参数列表，类型是`List<TypeParameterTree>`
+父类：[`ExpressionTree`](#表达式树expressiontree) 、[`TypeTree`](#类型树typetree)
 
+代表数组类型。注意方法参数中的可变参数也算作是数组类型。
 
-#### 变量树`VariableTree`
+* `TypeTree type()`：获取数组的[类型树](#类型树typetree)。
 
-* `VariableTree.modifiers()`：获取变量的修饰符，类型是`ModifierKeywordTree`；`ModifierKeywordTree.keyword()`可以获取修饰符的名称
+* `@Nullable SyntaxToken openBracketToken()`：获取左中括号的[语法token](#语法tokensyntaxtoken)。
 
-* `VariableTree.type()`：获取变量的类型，类型是`TypeTree`；`TypeTree.symbolType()`可以转换为`Type`类型
+* `@Nullable SyntaxToken closeBracketToken()`：获取右中括号的[语法token](#语法tokensyntaxtoken)。
 
-* `VariableTree.simpleName()`：获取变量名，类型是`IdentifierTree`
-
-* `VariableTree.symbol()`：获取变量的符号，类型是`Symbol.VariableSymbol`；`VariableTree.symbol().type()`和`VariableTree.type().symbolType()`是等价的
-
-
-#### 表达式树`ExpressionTree`
-
-`ExpressionTree`有一系列不同的实现类，比如`LiteralTree`、`MemberSelectExpressionTree`、`NewClassTree`、`MethodInvocationTree`等等
-
-通常可以通过`ExpressionTree.kind()`判断表达式树的精确种类，然后强制转换为对应的种类；或者通过`ExpressionTree.firstToken()`和`ExpressionTree.lastToken()`取得表达式部分token，进一步获得token的位置
-
-* `ExpressionTree.symbolType()`：表达式的值的类型
-
-* `ExpressionTree.asConstant()`：获取表达式的值
-
-以下列出一些常用的子类：
-
-##### `UnaryExpressionTree`
-
-`operatorToken()`、`expression()`
-
-##### `BinaryExpressionTree`
-
-`operatorToken()`、`leftOperand()`、`rightOperand()`
-
-##### `ConditionalExpressionTree`
-
-##### `ArrayAccessExpressionTree`
-
-##### `MemberSelectExpressionTree`
-
-
-#### 语句树`StatementTree`
-
-`StatementTree`有一系列不同的实现类，比如`AssertStatementTree`、`ReturnStatementTree`、`IfStatementTree`，`ForEachStatementTree`等等
-
-`StatementTree`本身没有`Tree`之外的方法，但它的子类有很多方法，比如`IfStatementTree.thenStatement()`、`IfStatementTree.elseStatement()`、`IfStatementTree.condition()`等等
-
-以下列出一些常用的子类：
-
-##### `IfStatementTree`
-
-`ifKeyword()`、`openParenToken()`、`closeParenToken()`、`thenStatement()`、`elseKeyword()`、`elseStatement()`、`condition()`
-
-##### `AssertStatementTree`
-
-`assertKeyword()`、`condition()`、`colonToken()`、`detail()`
-
-##### `SwitchStatementTree`
-
-`switchKeyword()`、`openParenToken()`、`expression()`、`closeParenToken()`、`openBraceToken()`、`cases()`、`closeBraceToken()`
-
-本身没有方法，所用的方法全部来自于`SwitchTree`
-
-##### `WhileStatementTree`
-
-`whileKeyword()`、`openParenToken()`、`condition()`、`closeParenToken()`、`statement()`
-
-##### `DoWhileStatementTree`
-
-`doKeyword()`、`statement()`、`whileKeyword()`、`openParenToken()`、`condition()`、`closeParenToken()`
-
-##### `ForStatementTree`
-
-`forKeyword()`、`openParenToken()`、`variable()`、`expression()`、`colonToken()`、`closeParenToken()`、`statement()`
-
-##### `BreakStatementTree`
-
-`breakKeyword()`
-
-##### `YieldStatementTree`
-
-`yieldKeyword()`、`expression()`
-
-##### `ContinueStatementTree`
-
-`continueKeyword()`
-
-##### `ReturnStatementTree`
-
-`returnKeyword()`、`expression()`
-
-##### `ThrowStatementTree`
-
-`throwKeyword()`、`expression()`
-
-##### `SynchronizedStatementTree`
-
-`synchronizedKeyword()`、`openParenToken()`、`expression()`、`closeParenToken()`、`block()`
-
-##### `TryStatementTree`
-
-`tryKeyword()`、`openParenToken()`、`closeParenToken()`、`resourceList()`、`block()`、`catches()`、`finallyKeyword()`、`finallyBlock()`
-
-#### 块树`BlockTree`
-
-`BlockTree`是`StatementTree`的子类，有用的方法仅限于`BlockTree.body()`，使用它的树类很少
-
-* `BlockTree.body()`：获取块的内容，类型是`List<StatementTree>`
-
-
-##### 常量树`LiteralTree`
-
-* `LiteralTree.value()`：获取常量的值，以字符串表示
-
-* `LiteralTree.token()`：获取常量的token，类型是`SyntaxToken`；`SyntaxToken.text()`可以获取token的文本，等价于`LiteralTree.value()`
+* `@Nullable SyntaxToken ellipsisToken()`：如果这个数组类型是可变参数，获取省略号的[语法token](#语法tokensyntaxtoken)。
 
 
 #### 标识符树`IdentifierTree`
 
-* `IdentifierTree.name()`：标识符的名称，类型是`String`
+父类：[`ExpressionTree`](#表达式树expressiontree) 、[`TypeTree`](#类型树typetree)
 
-* `IdentifierTree.symbol()`：标识符的符号
+* `SyntaxToken identifierToken()`：获取标识符的[语法token](#语法tokensyntaxtoken)。
 
+* `IdentifierTree.name()`：标识符的名称。
 
-##### 调用方法树`MethodInvocationTree`
-
-// TODO
-
-
-#### 注解树`AnnotationTree`
-
-* `TypeTree annotationType()`：获取注解的类型；`TypeTree.symbolType()`可以转换为`Type`类型
-
-* `ListTree<ExpressionTree> arguments()`：获取注解的参数；`ListTree<ExpressionTree>`中包含一列`ExpressionTree`形式的参数
+* `IdentifierTree.symbol()`：标识符的[符号](#符号symbol)。
 
 
-#### 修饰符树`ModifiersTree`
+#### 含参类型树`ParameterizedTypeTree`
 
-父类：[`ListTree`](#列表树listtree)
+父类：[`TypeTree`](#类型树typetree)
 
-表示一系列的修饰符。
+* `TypeTree type()`：获取[类型树](#类型树typetree)。
 
-`ModifiersTree`是`ListTree`的子类，可以直接当作一个包含`ModifierTree`的`List`来使用。
-
-* `List<AnnotationTree> annotations()`：获取修饰符中的注解，注解以一列[注解树](#注解树annotationtree)的方式列出。
-
-* `List<ModifierKeywordTree> modifiers()`：获取列表中的修饰符，修饰符以一列[修饰符关键字树](#修饰符关键字树modifierkeywordtree)的方式列出。
-
-  用这个方法和直接把`ModifiersTree`当作`List`使用的区别是`List`中元素的类型。这个方法返回的是[`ModifierKeywordTree`](#修饰符关键字树modifierkeywordtree)，而直接当作`List`返回的则是`ModifierTree`。
+* `TypeArguments typeArguments()`：获取类型的[类型参数列表](#typearguments)。
 
 
-#### 修饰符关键字树`ModifierKeywordTree`
+#### 原始类型树`PrimitiveTypeTree`
 
-父类：`ModifierTree`（`ModifierTree`相比它的父类[`Tree`](#树tree)没有任何新加的方法）
+父类：[`ExpressionTree`](#表达式树expressiontree)、[`TypeTree`](#类型树typetree)
 
-* `Modifier modifier()`：获取修饰符的类型。
+* `SyntaxToken keyword()`：获取原始类型的[语法token](#语法tokensyntaxtoken)（例如`int`、`byte`等等）。
 
-  `Modifier`是一个枚举类，包含了所有修饰符的类型。
 
-* `SyntaxToken keyword()`：获取修饰符的[语法token](#语法tokensyntaxtoken)。
+#### 联合类型树`UnionTypeTree`
+
+父类：[`TypeTree`](#类型树typetree)
+
+`UnionType`是**Java 14**中的新特性，表示一个联合类型，与TypeScript中的联合类型类似。详见[`UnionType`文档](https://docs.oracle.com/en/java/javase/14/docs/api/java.compiler/javax/lang/model/type/UnionType.html)。
+
+与TypeScript的联合类型不同的是，Java中的`UnionType`的使用范围非常局限，只能用于异常的`catch`语句中。通常来说，当需要捕获多个异常时，我们需要写多个`catch`语句，即使对这些异常的处理方式是一样的。而使用`UnionType`可以将多个异常的捕获写在一个`catch`语句中，使得代码看起来更加精简。注意`UnionType`中列出的异常类型必须是互不相交的，即不能有继承关系。
+
+例：
+
+```java
+public class MultiCatchExample {
+  public static void main(String[] args) {
+    try {
+      int[] arr = {1, 2, 3};
+      System.out.println(arr[5]);
+    } catch (ArrayIndexOutOfBoundsException | NullPointerException e) {
+      System.out.println("Exception caught: " + e);
+    }
+  }
+}
+```
+
+在上面的例子中，我们同时捕获了`ArrayIndexOutOfBoundsException`和`NullPointerException`，并且用同样的方式处理了这两个异常。
+
+* `ListTree<TypeTree> typeAlternatives()`：获取联合类型中的所有类型，以[列表树](#列表树listtree)的方式列出。
+
+
+#### var类型树`VarTypeTree`
+
+父类：[`TypeTree`](#类型树typetree)
+
+`var`关键字是**Java 10**中的新特性。当声明一个局部变量时，我们需要会指定它的类型。而在Java 10中，我们可以把局部变量的类型声明为`var`，让Java自己根据上下文去猜测这个变量的类型。详见[Java 10更新描述](https://docs.oracle.com/javase/10/language/toc.htm#JSLAN-GUID-7D5FDD65-ACE4-4B3C-80F4-CC01CBD211A4)。
+
+* `SyntaxToken varToken()`：获取`var`关键字的[语法token](#语法tokensyntaxtoken)。
+
+
+#### 通配符树`WildcardTree`
+
+父类：[`TypeTree`](#类型树typetree)
+
+用于检测泛型中的通配符。
+
+* `List<AnnotationTree> annotations()`：获取泛型的注解，注解以一列[注解树](#注解树annotationtree)的方式列出。
+
+* `SyntaxToken queryToken()`：获取通配符`?`的[语法token](#语法tokensyntaxtoken)。
+
+* `@Nullable SyntaxToken extendsOrSuperToken()`：获取`extends`或`super`的[语法token](#语法tokensyntaxtoken)。
+
+* `@Nullable TypeTree bound()`：获取通配符的边界的[类型树](#类型树typetree)。
 
 
 #### 列表树`ListTree`
@@ -244,15 +540,140 @@ Sonar通过遍历语法树的形式来进行代码检查。
   例如`ListTree`中有`a`、`b`、`c`三个元素，那么`separators()`返回的就是`a`和`b`之间的分隔符以及`b`和`c`之间的分隔符。
 
 
-#### 类型树`TypeTree`
+#### 多修饰符树`ModifiersTree`
+
+父类：[`ListTree`](#列表树listtree)（元素类型为[修饰符树](#修饰符树`ModifierTree`)）
+
+表示一系列的修饰符。
+
+`ModifiersTree`是`ListTree`的子类，可以直接当作一个包含`ModifierTree`的`List`来使用。
+
+* `List<AnnotationTree> annotations()`：获取列表中的注解，注解以一列[注解树](#注解树annotationtree)的方式列出。
+
+* `List<ModifierKeywordTree> modifiers()`：获取列表中的修饰符，修饰符以一列[修饰符关键字树](#修饰符关键字树modifierkeywordtree)的方式列出。
+
+  用这个方法和直接把`ModifiersTree`当作`List`使用的区别是`List`中元素的类型。这个方法返回的是[`ModifierKeywordTree`](#修饰符关键字树modifierkeywordtree)，而直接当作`List`返回的则是`ModifierTree`。
+
+
+#### `TypeArguments`
+
+父类：[`ListTree`](#列表树listtree)（元素类型为[`Tree`](#树tree)）
+
+
+#### `TypeParameters`
+
+父类：[`ListTree`](#列表树listtree)（元素类型为[`TypeParameterTree`](#类型参数树typeparametertree)）
+
+
+#### 修饰符树`ModifierTree`
 
 父类：[`Tree`](#树tree)
 
-把节点的类型用树的方式存储。相比起[类型](#类型type)，类型树包含了更丰富的信息。
+相比它的父类[`Tree`](#树tree)没有任何新加的方法。
 
-* `Type symbolType()`：获取类型树代表的[类型](#类型type)。
 
-* `List<AnnotationTree>`：获取类型树的注解，注解以一列[注解树](#注解树annotationtree)的方式列出。
+#### 修饰符关键字树`ModifierKeywordTree`
+
+父类：[`ModifierTree`](#修饰符树modifiertree)
+
+* `Modifier modifier()`：获取修饰符的类型。
+
+  `Modifier`是一个枚举类，包含了所有修饰符的类型。
+
+* `SyntaxToken keyword()`：获取修饰符的[语法token](#语法tokensyntaxtoken)。
+
+
+#### 类型参数树`TypeParameterTree`
+
+父类：[`Tree`](#树tree)
+
+* `IdentifierTree identifier()`：获取类型参数的[标识符树](#标识符树identifiertree)。
+
+* `@Nullable SyntaxToken extendsToken()`：获取`extends`关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `ListTree<Tree> bounds()`：获取类型参数的边界，边界以[列表树](#列表树listtree)的方式列出。
+
+
+#### 模组命令树`ModuleDirectiveTree`
+
+父类：[`Tree`](#树tree)
+
+模组`module`是**Java 9**中的新特性，用于模块化Java程序。详见[Java 9模组说明文章](https://www.oracle.com/corporate/features/understanding-java-9-modules.html)。
+
+
+#### `RequiresDirectiveTree`
+
+父类：[`ModuleDirectiveTree`](#moduledirectivetree)
+
+
+#### `ExportsDirectiveTree`
+
+父类：[`ModuleDirectiveTree`](#moduledirectivetree)
+
+
+#### `OpensDirectiveTree`
+
+父类：[`ModuleDirectiveTree`](#moduledirectivetree)
+
+
+#### `UsesDirectiveTree`
+
+父类：[`ModuleDirectiveTree`](#moduledirectivetree)
+
+
+#### `ProvidesDirectiveTree`
+
+父类：[`ModuleDirectiveTree`](#moduledirectivetree)
+
+
+#### 编译单元树`CompilationUnitTree`
+
+父类：[`Tree`](#树tree)
+
+
+#### 导入项树`ImportClauseTree`
+
+父类：[`Tree`](#树tree)
+
+
+#### 导入树`ImportTree`
+
+父类：[`ImportClauseTree`](#导入项树importclausetree)
+
+
+#### 模块声明树`ModuleDeclarationTree`
+
+父类：[`Tree`](#树tree)
+
+
+#### 包声明树`PackageDeclarationTree`
+
+父类：[`Tree`](#树tree)
+
+
+#### Case组树`CaseGroupTree`
+
+父类：[`Tree`](#树tree)
+
+
+#### Case标签树`CaseLabelTree`
+
+父类：[`Tree`](#树tree)
+
+
+#### Catch树`CatchTree`
+
+父类：[`Tree`](#树tree)
+
+
+#### Enum常量树`EnumConstantTree`
+
+父类：[`Tree`](#树tree)
+
+
+#### `ArrayDimensionTree`
+
+父类：[`Tree`](#树tree)
 
 
 
@@ -260,7 +681,7 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 父类：无
 
-类型是把Java中的类型转换为语法树元素得来的，内置了多种判断类型的方法，常用于判断节点的类型；除此之外用处并不大。
+类型是把Java中的类型转换为语法树元素得来的，内置了多种判断类型的方法。
 
 注意此处的类型`Type`和[`Tree.Kind`](#树tree)中的种类不是同一个东西：此处的类型是Java中的类型，[`Tree.Kind`](#树tree)中的种类是语法树中的种类。
 
@@ -316,8 +737,6 @@ Sonar通过遍历语法树的形式来进行代码检查。
 * `SymbolMetadata metadata()`：获取符号的[符号元数据](#符号元数据symbolmetadata)，可以获取符号的注解等信息。
 
 * `List<IdentifierTree> usages()`：获取符号的使用列表，为一个[标识符](#标识符树identifiertree)列表。
-
-  通过[`IdentifierTree`](#标识符树IdentifierTree)的`identifierToken()`可以获取符号每处的[语法token](#语法tokensyntaxtoken)，进而获得token的位置。
 
 * `Tree declaration()`：符号的声明，在各子类中有对应重载的方法。
 
@@ -380,13 +799,13 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 父类：无
 
-表示符号的元数据，用于获取符号的注解信息。
+表示符号的元数据，用于获取符号的注解信息。注意[`AnnotationTree`](#注解树annotationtree)同样可以获取注解信息，这两者的区别见[`AnnotationTree`](#注解树annotationtree)下的说明。
 
 `SymbolMetadata`中定义了两个接口，`AnnotationInstance`和`AnnotationValue`，分别用于获取单个注解和单个注解的值。
 
 * `boolean isAnnotatedWith(String annotationName)`：判断符号是否被`annotationName`注解了。
 
-* `@CheckForNull List<AnnotationValue> valuesForAnnotation(String annotationName)`：获取符号被`annotationName`注解的值。
+* `@CheckForNull List<AnnotationValue> valuesForAnnotation(String annotationName)`：获取用于注解这个符号的，名称是`annotationName`的注解的参数。
 
 * `List<AnnotationInstance> annotations()`：获取符号的所有[注解实例](#注解实例annotationinstance)。
 
@@ -422,6 +841,10 @@ Sonar通过遍历语法树的形式来进行代码检查。
 * `int line()`：token所在的行数。
 
 * `int column()`：token所在的列数。
+
+* `List<SyntaxTrivia>`：token的注释。
+
+  _暂时没发现怎么使用，测试中无法获取到注释。_
 
 
 
@@ -486,7 +909,7 @@ SonarQube的Java自定义规则是通过插件来实现的。插件是一个完�
 
 如果只需要检测少量几种语法树，而且不同语法树之间互不影响，则可以用[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)，这个类只需要实现`visitNode`和`nodesToVisit`方法即可。
 
-```
+```java
 package package路径.checks;
 
 import org.sonar.check.Rule;
@@ -535,7 +958,7 @@ public class 自定义规则类 extends IssuableSubscriptionVisitor {
 
 如果需要更复杂的检测，则可以用[`BaseTreeVisitor`](#basetreevisitor类)和`JavaFileScanner`，这个类需要实现`scanFile`方法并按需重载一些检测语法树的方法。注意使用这个类报告问题时，`reportIssue()`是由`JavaFileScannerContext`调用的，而不是[`BaseTreeVisitor`](#basetreevisitor类)。
 
-```
+```java
 package package路径.checks;
 
 import org.sonar.check.Rule;
@@ -597,7 +1020,7 @@ public class 自定义规则类 extends BaseTreeVisitor implements JavaFileScann
 
 HTML文件是这个规则在SonarQube管理页面中展示的内容。
 
-```
+```html
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -625,7 +1048,7 @@ HTML文件是这个规则在SonarQube管理页面中展示的内容。
 
 JSON文件描述这个规则的属性，比如类型、标签、严重性等等。
 
-```
+```json
 {
   "title": 规则标题或名称,
   "type": 规则类型，可选"BUG"、"VULNERABILITY"、"CODE_SMELL"、"SECURITY_HOTSPOT",
@@ -651,7 +1074,7 @@ JSON文件描述这个规则的属性，比如类型、标签、严重性等等�
 
 符合规则的代码则不需要标记。
 
-```
+```java
 class 随便取类名 {
   int     foo3(int value) { return 0; } // Noncompliant {{解释不符合规则的原因（可选）}}
   Object  foo4(int value) { return null; }
@@ -669,7 +1092,7 @@ class 随便取类名 {
 
 一个测试文件可以测试多个[规则示例文件](#规则示例文件)。
 
-```
+```java
 package package路径.checks;
 
 import org.junit.jupiter.api.Test;
@@ -727,7 +1150,7 @@ public class 测试文件名 {
 
 * [`VariableTree`](#变量树variabletree)：`simpleName()`
 
-```
+```java
 package org.sonar.samples.java.checks;
 
 import org.sonar.check.Rule;
@@ -794,7 +1217,7 @@ public class JavaDevRuleCheck extends BaseTreeVisitor implements JavaFileScanner
 
 * [`VariableTree`](#变量树variabletree)：`simpleName()`
 
-```
+```java
 package org.sonar.samples.java.checks;
 
 import org.sonar.check.Rule;
@@ -853,11 +1276,11 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 
 * [`VariableTree`](#变量树variabletree)：`simpleName()`、`modifiers()`
 
-* [`ModifiersTree`](#修饰符树modifierstree)：`modifiers()`
+* [`ModifiersTree`](#多修饰符树modifierstree)：`modifiers()`
 
 * [`ModifierKeywordTree`](#修饰符关键字树modifierkeywordtree)：`modifier()`
 
-```
+```java
 package org.sonar.samples.java.checks;
 
 import org.sonar.check.Rule;
@@ -922,7 +1345,7 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 
 * [`Type`](#类型type)：`name()`
 
-```
+```java
 package org.sonar.samples.java.checks;
 
 import org.sonar.check.Rule;
