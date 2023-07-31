@@ -9,6 +9,8 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 ## 语法树组件
 
+语法树包含[树](#树tree)、[类型](#类型type)、[符号](#符号symbol)和[语法token](#语法tokensyntaxtoken)。
+
 ### 树`Tree`
 
 整个文件的语法树中的一个节点，表示一个语句、一个表达式、一个变量、一个方法、一个类等等。树的类型非常多，具体可以在`org.sonar.plugins.java.api.tree.BaseTreeVisitor`中找到。
@@ -53,9 +55,7 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 * `TypeTree annotationType()`：获取注解的[类型树](#类型树typetree)。
 
-* `Arguments arguments()`：获取注解的参数。
-
-  `Arguments`是[`ListTree`](#列表树listtree)的子类，元素类型为[`ExpressionTree`](#表达式树expressiontree)。有获取左右括号的[`SyntaxToken`](#语法tokensyntaxtoken)的方法`openParenToken()`和`closeParenToken()`。
+* `Arguments arguments()`：获取注解的[参数列表](#参数列表arguments)。
 
 
 #### 数组元素访问表达式树`ArrayAccessExpressionTree`
@@ -143,7 +143,7 @@ Sonar通过遍历语法树的形式来进行代码检查。
 * `Tree body()`：获取lambda表达式的主体。
 
 
-##### 常量树`LiteralTree`
+##### 字面量树`LiteralTree`
 
 父类：[`ExpressionTree`](#表达式树expressiontree)
 
@@ -237,6 +237,8 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 一个被括号包起来的表达式，例如`(1 + 2) * 3`中的`(1 + 2)`。
 
+注意仅限于表达式，方法调用、新建类对象、注解等传参使用的括号不包含在这个树中。
+
 * `SyntaxToken openParenToken()`：获取左括号的[语法token](#语法tokensyntaxtoken)。
 
 * `ExpressionTree expression()`：获取括号中的[表达式](#表达式树expressiontree)。
@@ -254,7 +256,7 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 * `SyntaxToken closeParenToken()`：获取右括号的[语法token](#语法tokensyntaxtoken)。
 
-* `ExpressionTree expression()`：获取转换的[表达式](#表达式树expressiontree)。
+* `ExpressionTree expression()`：获取被转换的[表达式](#表达式树expressiontree)。
 
 * `@Nullable SyntaxToken andToken()`：获取`&`的[语法token](#语法tokensyntaxtoken)。
 
@@ -484,6 +486,8 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 父类：[`StatementTree`](#语句树statementtree) 
 
+仅限于`synchronized`代码块，不包括`synchronized`方法。
+
 * `SyntaxToken synchronizedKeyword()`：获取`synchronized`关键字的[语法token](#语法tokensyntaxtoken)。
 
 * `SyntaxToken openParenToken()`：获取左括号的[语法token](#语法tokensyntaxtoken)。
@@ -621,6 +625,7 @@ String result = switch (expression) {
 
 class MyClass {
   private static final int a;
+  // 静态初始化代码块
   static {
     a = 1;
   }
@@ -779,11 +784,11 @@ public class MultiCatchExample {
 
 #### 多修饰符树`ModifiersTree`
 
-父类：[`ListTree`](#列表树listtree)（元素类型为[修饰符树](#修饰符树`ModifierTree`)）
+父类：[`ListTree`](#列表树listtree)（元素类型为[ModifierTree](#修饰符树`ModifierTree`)）
 
 表示一系列的修饰符。
 
-`ModifiersTree`是`ListTree`的子类，可以直接当作一个包含`ModifierTree`的`List`来使用。
+`ModifiersTree`是[`ListTree`](#列表树listtree)的子类，可以直接当作一个包含[ModifierTree](#修饰符树`ModifierTree`)的`List`来使用。
 
 * `List<AnnotationTree> annotations()`：获取列表中的注解，注解以一列[注解树](#注解树annotationtree)的方式列出。
 
@@ -847,6 +852,15 @@ public class TypeArgumentsVsTypeParameters {
 * `@Nullable SyntaxToken closeBracketToken()`：获取泛型参数列表的右尖括号的[语法token](#语法tokensyntaxtoken)。
 
 
+#### 模组名称树`ModuleNameTree`
+
+父类：[`ListTree`](#列表树listtree)（元素类型为[`IdentifierTree`](#标识符树identifiertree)）
+
+相比父类没有任何新增的方法。
+
+关于模组的更多信息见[`ModuleDirectiveTree`](#模组命令树moduledirectivetree)。
+
+
 #### 修饰符树`ModifierTree`
 
 父类：[`Tree`](#树tree)
@@ -882,57 +896,189 @@ public class TypeArgumentsVsTypeParameters {
 
 父类：[`Tree`](#树tree)
 
-模组`module`是**Java 9**中的新特性，用于模块化Java程序。详见[Java 9模组说明文章](https://www.oracle.com/corporate/features/understanding-java-9-modules.html)。
+模组`module`是**Java 9**中的新特性，用于模块化Java程序。详见[Java 9模组说明文章](https://www.oracle.com/corporate/features/understanding-java-9-modules.html)和[第三方教程](https://jenkov.com/tutorials/java/modules.html)。
+
+构建模组的文件结构如下：
+
+```
+模组名
+├─module-info.java
+├─package1
+├─package2
+└─...
+```
+
+在`module-info.java`中需要声明这个模组以及它的依赖关系。`module-info.java`的内容如下：
+
+```java
+module com.example.mymodule {
+  // 模组导出的包，只有这里导出的包才能被别的模组使用
+  exports com.example.package1;
+  exports com.example.package2;
+  exports ...
+
+  // 模组的依赖
+  // static表示这个依赖只在编译时需要，运行时不需要
+  // transitive表示如果别的模组导入了这个模组（mymodule），这个依赖（dependency1）也会被别的模组作为依赖导入
+  requires [static | transitive] com.example.dependency1;
+  requires com.example.dependency2.service;
+  requires com.example.dependency3.implementedservice;
+
+  // 如果需要实现一个服务模组的接口
+  provides com.example.dependency2.service.ServiceInterface with
+    com.example.service.ServiceInterfaceImpl
+   
+  // 如果需要使用一个已经实现的服务模组
+  uses com.example.dependency3.implementedservice.ServiceInterface
+
+  // 如果需要用反射获取一个包中的所有成员，包括private成员
+  opens com.example.dependency1;
+}
+```
+
+* `SyntaxToken directiveKeyword()`：获取命令的[语法token](#语法tokensyntaxtoken)。
+
+* `SyntaxToken semicolonToken()`：获取分号的[语法token](#语法tokensyntaxtoken)。
 
 
 #### `RequiresDirectiveTree`
 
+用于指定一个依赖的模组。
+
 父类：[`ModuleDirectiveTree`](#moduledirectivetree)
+
+* `ModifiersTree modifiers()`：获取`require`命令的[多修饰符树](#多修饰符树modifierstree)。
+
+* `ModuleNameTree moduleName()`：获取`require`命令后的所有模组，以[模组名称树](#模组名称树modulenametree)的方式列出。
 
 
 #### `ExportsDirectiveTree`
 
 父类：[`ModuleDirectiveTree`](#moduledirectivetree)
 
+用于指定一个包作为模组的导出项。
+
+* `ExpressionTree packageName()`：获取`exports`命令后的包的[表达式树](#表达式树expressiontree)。
+
+* `@Nullable SyntaxToken toKeyword()`：获取`exports`命令后的`to`关键字的[语法token](#语法tokensyntaxtoken)。
+
+  `to`关键字可以指定这个包只能被哪些模组使用。如果没有指定`to`关键字，那么这个包就可以被所有模组使用。
+
+* `ListTree<ModuleNameTree> moduleNames()`：获取`exports`命令中`to`关键字后的所有模组，以[列表树](#列表树listtree)的方式列出，元素类型是[模组名称树](#模组名称树modulenametree)。
+
 
 #### `OpensDirectiveTree`
 
 父类：[`ModuleDirectiveTree`](#moduledirectivetree)
+
+用于指定一个包作为模组的开放项，这个包里的所有成员都可以在这个模组中用反射获取。在**Java 8**和更早版本中，反射总是能获取一个包中的所有成员，包括`private`成员。但是在**Java 9**和更高版本中，反射默认只能获取除`private`以外的成员，如果想要获取`private`成员，就需要使用`opens`命令。
+
+* `ExpressionTree packageName()`：获取`opens`命令后的包的[表达式树](#表达式树expressiontree)。
+
+* `@Nullable SyntaxToken toKeyword()`：获取`opens`命令后的`to`关键字的[语法token](#语法tokensyntaxtoken)。
+
+  `to`关键字可以指定这个包只能被哪些模组使用。如果没有指定`to`关键字，那么这个包就可以被所有模组使用。
+
+* `ListTree<ModuleNameTree> moduleNames()`：获取`opens`命令中`to`关键字后的所有模组，以[列表树](#列表树listtree)的方式列出，元素类型是[模组名称树](#模组名称树modulenametree)。
 
 
 #### `UsesDirectiveTree`
 
 父类：[`ModuleDirectiveTree`](#moduledirectivetree)
 
+用于指定一个可供使用的服务模组接口。
+
+* `TypeTree typeName()`：获取`uses`命令后的服务模组接口的[类型树](#类型树typetree)。
+
 
 #### `ProvidesDirectiveTree`
 
+用于给一个服务模组接口提供一个实现。
+
 父类：[`ModuleDirectiveTree`](#moduledirectivetree)
+
+* `TypeTree typeName()`：获取`provides`命令后的服务模组接口的[类型树](#类型树typetree)。
+
+* `SyntaxToken withKeyword()`：获取`provides`命令后的`with`关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `ListTree<TypeTree> typeNames()`：获取`provides`命令中`with`关键字后的所有服务模组接口的实现类，以[列表树](#列表树listtree)的方式列出，元素类型是[类型树](#类型树typetree)。
 
 
 #### 编译单元树`CompilationUnitTree`
 
 父类：[`Tree`](#树tree)
 
+编译单元是指一个Java源文件，例如`MyClass.java`，编译单元树是指这个源文件的语法树。编译单元树一般是所有树的最终父节点。
+
+* `@Nullable PackageDeclarationTree packageDeclaration()`：获取编译单元中的包声明，以[包声明树](#包声明树packagedeclarationtree)的方式获取。
+
+* `List<ImportClauseTree> imports()`：获取编译单元中的所有导入语句，以一列[导入项树](#导入项树importclausetree)的方式列出。
+
+* `List<Tree> types()`：获取编译单元中的所有类型声明，以一列[树](#树tree)的方式列出。
+
+* `@Nullable ModuleDeclarationTree moduleDeclaration()`：获取编译单元中的模组声明，以[模组声明树](#模组声明树moduledeclarationtree)的方式获取。
+
+* `SyntaxToken eofToken()`：获取编译单元的结束符的[语法token](#语法tokensyntaxtoken)。
+
 
 #### 导入项树`ImportClauseTree`
 
 父类：[`Tree`](#树tree)
+
+与父类相比没有新增的方法。
 
 
 #### 导入树`ImportTree`
 
 父类：[`ImportClauseTree`](#导入项树importclausetree)
 
+* `boolean isStatic()`：判断这个导入项是否是静态导入。
 
-#### 模块声明树`ModuleDeclarationTree`
+* `SyntaxToken importKeyword()`：获取`import`关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `@Nullable SyntaxToken staticKeyword()`：如果这个导入项是静态导入，获取`static`关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `Tree qualifiedIdentifier()`：获取导入的包。
+
+* `SyntaxToken semicolonToken()`：获取分号的[语法token](#语法tokensyntaxtoken)。
+
+
+#### 模组声明树`ModuleDeclarationTree`
 
 父类：[`Tree`](#树tree)
+
+关于模组的更多信息见[`ModuleDirectiveTree`](#模组命令树moduledirectivetree)。
+
+* `List<AnnotationTree> annotations()`：获取模组声明的注解，注解以一列[注解树](#注解树annotationtree)的方式列出。
+
+  _注意：模组声明的注解只能是`@Deprecated`。_
+
+* `@Nullable SyntaxToken openKeyword()`：获取`open`关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `SyntaxToken moduleKeyword()`：获取`module`关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `ModuleNameTree moduleName()`：获取模组名的[模组名称树](#模组名称树modulenametree)。
+
+* `SyntaxToken openBraceToken()`：获取左大括号的[语法token](#语法tokensyntaxtoken)。
+
+* `List<ModuleDirectiveTree> directives()`：获取模组中的所有命令，以一列[模组命令树](#模组命令树moduledirectivetree)的方式列出。
+
+* `SyntaxToken closeBraceToken()`：获取右大括号的[语法token](#语法tokensyntaxtoken)。
 
 
 #### 包声明树`PackageDeclarationTree`
 
 父类：[`Tree`](#树tree)
+
+* `List<AnnotationTree> annotations()`：获取包声明的注解，注解以一列[注解树](#注解树annotationtree)的方式列出。
+
+  _注意：包声明的注解只能是`@Deprecated`。_
+
+* `SyntaxToken packageKeyword()`：获取`package`关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `ExpressionTree packageName()`：获取包名的[表达式树](#表达式树expressiontree)。
+
+* `SyntaxToken semicolonToken()`：获取分号的[语法token](#语法tokensyntaxtoken)。
 
 
 #### Switch树`SwitchTree`
@@ -982,15 +1128,49 @@ public class TypeArgumentsVsTypeParameters {
 
 父类：[`Tree`](#树tree)
 
+* `SyntaxToken catchKeyword()`：获取`catch`关键字的[语法token](#语法tokensyntaxtoken)。
+
+* `SyntaxToken openParenToken()`：获取左括号的[语法token](#语法tokensyntaxtoken)。
+
+* `VariableTree parameter()`：获取`catch`语句的参数，以[变量树](#变量树variableTree)的方式获取。
+
+* `SyntaxToken closeParenToken()`：获取右括号的[语法token](#语法tokensyntaxtoken)。
+
+* `BlockTree block()`：获取`catch`语句的内容，以[块树](#块树blocktree)的方式获取。
+
 
 #### Enum常量树`EnumConstantTree`
 
 父类：[`Tree`](#树tree)
 
+代表一个`enum`中的一个常量。
+
+* `ModifiersTree modifiers()`：获取`enum`常量的[多修饰符树](#多修饰符树modifierstree)。
+
+  _不知道有什么用，一个`enum`常量是没有修饰符的。_
+
+* `IdentifierTree simpleName()`：获取`enum`常量的[标识符树](#标识符树identifiertree)。
+
+* `NewClassTree initializer()`：获取`enum`常量的初始化语句，以[新建类树](#新建类树newclasstree)的方式获取。
+
+* `@Nullable SyntaxToken separatorToken()`：获取`enum`常量后的分隔符的[语法token](#语法tokensyntaxtoken)。
+
+  `enum`常量之间的分隔符是逗号，最后一个常量后的分隔符是分号。
+
 
 #### 数组长度树`ArrayDimensionTree`
 
 父类：[`Tree`](#树tree)
+
+代表一个数组在一个维度上的长度。例如`new int[5][10]`中的`[5]`和`[10]`分别是一个数组长度树。
+
+* `List<AnnotationTree> annotations()`：获取数组长度的注解，注解以一列[注解树](#注解树annotationtree)的方式列出。
+
+* `SyntaxToken openBracketToken()`：获取左方括号的[语法token](#语法tokensyntaxtoken)。
+
+* `@Nullable ExpressionTree expression()`：获取数组长度的[表达式树](#表达式树expressiontree)。
+
+* `SyntaxToken closeBracketToken()`：获取右方括号的[语法token](#语法tokensyntaxtoken)。
 
 
 
@@ -1752,6 +1932,185 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 
 #### 1.2.2 【强制】long 或 Long 赋值时，数值后使用大写 L，不能是小写 l，小写容易跟数字混淆，造成误解。
 
+因为我们只关心`long`类型的字面量，所以这里选择使用[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)，并把`nodesToVisit()`中的类型列表设为`Tree.Kind.LONG_LITERAL`。这样只会对`long`类型的字面量进行检测。
+
+如果使用[`BaseTreeVisitor`](#basetreevisitor类)，则需要自行在`visitLiteral()`方法中判断字面量的类型，如果是`long`类型，则进行检测。
+
+使用到的类和方法：
+
+* [`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)：`visitNode()`、`nodesToVisit()`、`reportIssue()`
+
+* [`LiteralTree`](#字面量树literaltree)：`value()`
+
+```java
+package org.sonar.samples.java.checks;
+
+import org.sonar.check.Rule;
+import org.sonar.plugins.java.api.IssuableSubscriptionVisitor;
+import org.sonar.plugins.java.api.tree.*;
+
+import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.*;
+
+@Rule(key = "JavaDevRuleCheck")
+public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
+
+  @Override
+  public List<Tree.Kind> nodesToVisit() {
+    return Collections.singletonList(Tree.Kind.LONG_LITERAL);
+  }
+
+  @Override
+  public void visitNode(@ParametersAreNonnullByDefault Tree tree) {
+    LiteralTree literalTree = (LiteralTree) tree;
+    if (literalTree.value().endsWith("l")) {
+      this.reportIssue(tree, "Long literal should end with \"L\", not \"l\"");
+    }
+  }
+}
+```
+
 
 #### 1.3.2 【强制】左小括号和右边相邻字符之间不需要空格；右小括号和左边相邻字符之间也不需要空格；而左大括号前需要加空格。
 
+此处仅检查小括号的使用，对大括号的检查是类似的。
+
+这个规则比较麻烦。Java中的括号会出现在不同地方，比如`while`语句、`for`循环、数学运算表达式等等。为了让SonarQube能够检测所有的这些情况，我们需要列出所有小括号可能出现的地方，然后在这些地方检测小括号的使用。因为需要检测多种语句，所以这里选择使用[`BaseTreeVisitor`](#basetreevisitor类)。
+
+规则的核心思想是取得左右小括号的[语法token](#语法tokensyntaxtoken)，再取得括号中的语句的第一个和最后一个[语法token](#语法tokensyntaxtoken)，然后比较这些token的位置。
+
+由于完整的规则文件过长，这里仅展示部分方法，其它方法的构造是类似的。
+
+```java
+package org.sonar.samples.java.checks;
+
+import org.sonar.check.Rule;
+import org.sonar.plugins.java.api.JavaFileScanner;
+import org.sonar.plugins.java.api.JavaFileScannerContext;
+import org.sonar.plugins.java.api.tree.*;
+
+import java.util.List;
+import java.util.Objects;
+
+@Rule(key = "JavaDevRuleCheckBaseVisitor")
+public class JavaDevRuleCheckBaseVisitor extends BaseTreeVisitor implements JavaFileScanner {
+
+  private JavaFileScannerContext context;
+
+  @Override
+  public void scanFile(JavaFileScannerContext context) {
+    this.context = context;
+    this.scan(context.getTree());
+  }
+
+  @Override
+  public void visitLambdaExpression(LambdaExpressionTree tree) {
+    if (tree.openParenToken() != null) {
+      int openParenCol = Objects.requireNonNull(tree.openParenToken()).column();
+      int closeParenCol = Objects.requireNonNull(tree.closeParenToken()).column();
+      List<VariableTree> parameters = tree.parameters();
+      if (parameters.isEmpty()) {
+        if (openParenCol + 1 != closeParenCol) {
+          this.context.reportIssue(this, tree, "No space inside empty parentheses");
+        }
+      } else {
+        SyntaxToken firstVarToken = parameters.get(0).simpleName().identifierToken();
+        SyntaxToken lastVarToken = parameters.get(parameters.size()-1).simpleName().identifierToken();
+        this.reportIssue(firstVarToken, lastVarToken, openParenCol, closeParenCol, tree);
+      }
+    }
+    super.visitLambdaExpression(tree);
+  }
+
+  @Override
+  public void visitParenthesized(ParenthesizedTree tree) {
+    int openParenCol = tree.openParenToken().column();
+    int closeParenCol = tree.closeParenToken().column();
+    SyntaxToken firstToken = tree.expression().firstToken();
+    SyntaxToken lastToken = tree.expression().lastToken();
+    this.reportIssue(firstToken, lastToken, openParenCol, closeParenCol, tree);
+    super.visitParenthesized(tree);
+  }
+
+  @Override
+  public void visitTypeCast(TypeCastTree tree) {
+    int openParenCol = tree.openParenToken().column();
+    int closeParenCol = tree.closeParenToken().column();
+    SyntaxToken firstToken = tree.type().firstToken();
+    SyntaxToken lastToken = tree.type().lastToken();
+    this.reportIssue(firstToken, lastToken, openParenCol, closeParenCol, tree);
+    super.visitTypeCast(tree);
+  }
+
+  @Override
+  public void visitDoWhileStatement(DoWhileStatementTree tree) {
+    int openParenCol = tree.openParenToken().column();
+    int closeParenCol = tree.closeParenToken().column();
+    SyntaxToken firstToken = tree.condition().firstToken();
+    SyntaxToken lastToken = tree.condition().lastToken();
+    this.reportIssue(firstToken, lastToken, openParenCol, closeParenCol, tree);
+    super.visitDoWhileStatement(tree);
+  }
+
+  @Override
+  public void visitForEachStatement(ForEachStatement tree) {
+    int openParenCol = tree.openParenToken().column();
+    int closeParenCol = tree.closeParenToken().column();
+    SyntaxToken firstToken = tree.variable().firstToken();
+    SyntaxToken lastToken = tree.expression().lastToken();
+    this.reportIssue(firstToken, lastToken, openParenCol, closeParenCol, tree);
+    super.visitForEachStatement(tree);
+  }
+
+  @Override
+  public void visitForStatement(ForStatementTree tree) {
+    int openParenCol = tree.openParenToken().column();
+    int closeParenCol = tree.closeParenToken().column();
+    SyntaxToken firstToken = tree.initializer().firstToken();
+    SyntaxToken lastToken = tree.update().lastToken();
+    this.reportIssue(firstToken, lastToken, openParenCol, closeParenCol, tree);
+    super.visitForStatement(tree);
+  }
+
+  @Override
+  public void visitIfStatement(IfStatementTree tree) {
+    int openParenCol = tree.openParenToken().column();
+    int closeParenCol = tree.closeParenToken().column();
+    SyntaxToken firstToken = tree.condition().firstToken();
+    SyntaxToken lastToken = tree.condition().lastToken();
+    this.reportIssue(firstToken, lastToken, openParenCol, closeParenCol, tree);
+    super.visitIfStatement(tree);
+  }
+
+  @Override
+  public void visitSynchronizedStatement(SynchronizedStatementTree tree) {
+    int openParenCol = tree.openParenToken().column();
+    int closeParenCol = tree.closeParenToken().column();
+    SyntaxToken firstToken = tree.expression().firstToken();
+    SyntaxToken lastToken = tree.expression().lastToken();
+    this.reportIssue(firstToken, lastToken, openParenCol, closeParenCol, tree);
+    super.visitSynchronizedStatement(tree);
+  }
+
+  @Override
+  public void visitTryStatement(TryStatementTree tree) {
+    if (tree.openParenToken() != null) {
+      int openParenCol = Objects.requireNonNull(tree.openParenToken()).column();
+      int closeParenCol = Objects.requireNonNull(tree.closeParenToken()).column();
+      SyntaxToken firstToken = tree.resourceList().firstToken();
+      SyntaxToken lastToken = tree.resourceList().lastToken();
+      this.reportIssue(firstToken, lastToken, openParenCol, closeParenCol, tree);
+    }
+    super.visitTryStatement(tree);
+  }
+
+  private void reportIssue(SyntaxToken firstToken, SyntaxToken lastToken, int openParenCol, int closeParenCol, Tree tree) {
+    if (firstToken != null && firstToken.column() > openParenCol + 1) {
+      this.context.reportIssue(this, tree, "No space between open parenthesis and expression");
+    } else if (lastToken != null && lastToken.column() + lastToken.text().length() < closeParenCol) {
+      this.context.reportIssue(this, tree, "No space between closing parenthesis and expression");
+    }
+  }
+
+}
+```
