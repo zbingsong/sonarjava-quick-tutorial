@@ -9,13 +9,11 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 ## 语法树组件
 
-语法树包含[树](#树tree)、[类型](#类型type)、[符号](#符号symbol)和[语法token](#语法tokensyntaxtoken)。
+语法树组件包含[树](#树tree)、[类型](#类型type)、[符号](#符号symbol)和[语法token](#语法tokensyntaxtoken)。
 
 ### 树`Tree`
 
-整个文件的语法树中的一个节点，表示一个语句、一个表达式、一个变量、一个方法、一个类等等。树的类型非常多，具体可以在`org.sonar.plugins.java.api.tree.BaseTreeVisitor`中找到。
-
-所有的树类型的组件都可以使用`Tree`类的方法。
+整个文件的语法树中的一个节点，表示一个语句、一个表达式、一个变量、一个方法、一个类等等。所有的树类型的组件都可以使用`Tree`类的方法。
 
 `Tree`下有`Tree.Kind`枚举类，包含了所有树节点的种类。注：后面会遇到[类型`Type`](#类型type)，和`Tree.Kind`不是同一个东西。为做区分，将`Tree.Kind`称为种类，将[`Type`](#类型type)称为类型。
 
@@ -73,7 +71,11 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 父类：[`ExpressionTree`](#表达式树expressiontree) 
 
+注意在变量声明时的赋值表达式不算入赋值表达式树中，而算入[变量树](#变量树variabletree)中。例如`int a = 1`中的`a = 1`不算赋值表达式。
+
 * `ExpressionTree variable()`：获取赋值的左边的[表达式](#表达式树expressiontree)。
+
+  _这个[表达式](#表达式树expressiontree)一定只含有变量名。_
 
 * `SyntaxToken operatorToken()`：获取赋值的运算符的[语法token](#语法tokensyntaxtoken)。
 
@@ -351,7 +353,7 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 * `StatementTree statement()`：获取`do`语句的代码块（即`do`后面的语句）。
 
-  _为什么不用`BlockTree`？_
+  _这里把循环里的所有代码（包括大括号）当作一整个语句来处理，实际上返回[`BlockTree`](#块树blocktree)是更合理的做法。我们依然可以通过自定义遍历器的方式访问代码块的内容，详见[自定义规则范例](#for循环和for-each循环里不能嵌套if)。_
 
 * `SyntaxToken whileKeyword()`：获取`while`关键字的[语法token](#语法tokensyntaxtoken)。
 
@@ -400,7 +402,7 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 * `StatementTree statement()`：获取`for`语句后的代码块。
 
-  _为什么不用`BlockTree`？_
+  _这里把循环里的所有代码（包括大括号）当作一整个语句来处理，实际上返回[`BlockTree`](#块树blocktree)是更合理的做法。我们依然可以通过自定义遍历器的方式访问代码块的内容，详见[自定义规则范例](#for循环和for-each循环里不能嵌套if)。_
 
 
 #### For语句树`ForStatementTree`
@@ -425,12 +427,46 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 * `StatementTree statement()`：获取`for`语句后的代码块。
 
-  _为什么不用`BlockTree`？_
+  _这里把循环里的所有代码（包括大括号）当作一整个语句来处理，实际上返回[`BlockTree`](#块树blocktree)是更合理的做法。我们依然可以通过自定义遍历器的方式访问代码块的内容，详见[自定义规则范例](#for循环和for-each循环里不能嵌套if)。_
 
 
 #### If语句树`IfStatementTree`
 
 父类：[`StatementTree`](#语句树statementtree) 
+
+对于含有`else if`的语句，`else if`会被解析成嵌套在`elseStatement`里面的`IfStatementTree`。
+
+例：
+
+```java
+if (state == 1) {
+  ...
+} else if (state == 2) {
+  ...
+} else if (state == 3) {
+  ...
+} else {
+  ...
+}
+```
+
+以上的代码会被解析成：
+
+```java
+if (state == 1) {
+  ...
+} else {
+  if (state == 2) {
+    ...
+  } else {
+    if (state == 3) {
+      ...
+    } else {
+      ...
+    }
+  }
+}
+```
 
 * `SyntaxToken ifKeyword()`：获取if关键字的[语法token](#语法tokensyntaxtoken)。
 
@@ -440,15 +476,15 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 * `ExpressionTree condition()`：获取if语句的条件[表达式](#表达式树expressiontree)。
 
-* `StatementTree thenStatement()`：获取if语句的代码块（即如果if条件为真时会执行的语句）。
+* `StatementTree thenStatement()`：获取if语句的代码[语句](#语句树statementtree)（即如果if条件为真时会执行的语句）。
 
-  _不理解为何这个方法返回的是`StatementTree`而不是`BlockTree`，很明显if语句后的代码块是一个块而不是一个语句_
+  _虽然返回值是[`StatementTree`](#语句树statementtree)，但其实返回[`BlockTree`](#块树blocktree)更合理；这个返回的[`StatementTree`](#语句树statementtree)把大括号中（包括大括号本身）所有的语句都当作一个语句来处理。我们依然可以通过自定义遍历器的方式访问代码块的内容，详见[自定义规则范例](#for循环和for-each循环里不能嵌套if)。_
 
 * `@Nullable SyntaxToken elseKeyword()`：获取else关键字的[语法token](#语法tokensyntaxtoken)。
 
-* `@Nullable StatementTree elseStatement()`：获取else语句的代码块（即如果if条件为假时会执行的语句）。
+* `@Nullable StatementTree elseStatement()`：获取else语句的代码[语句](#语句树statementtree)（即如果if条件为假时会执行的语句）。
 
-  _不理解为何这个方法返回的是`StatementTree`而不是`BlockTree`，很明显else语句后的代码块是一个块而不是一个语句_
+  _虽然返回值是[`StatementTree`](#语句树statementtree)，但其实返回[`BlockTree`](#块树blocktree)更合理；这个返回的[`StatementTree`](#语句树statementtree)把大括号中（包括大括号本身）所有的语句都当作一个语句来处理。我们依然可以通过自定义遍历器的方式访问代码块的内容，详见[自定义规则范例](#for循环和for-each循环里不能嵌套if)。_
 
 
 #### Labeled语句树`LabeledStatementTree`
@@ -459,7 +495,7 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 * `SyntaxToken colonToken()`：获取冒号的[语法token](#语法tokensyntaxtoken)。
 
-* `StatementTree statement()`：获取标签后的语句。
+* `StatementTree statement()`：获取标签后的[语句](#语句树statementtree)。
 
 * `Symbol.LabelSymbol symbol()`：获取标签的[类型符号](#类型符号typesymbol)。
 
@@ -543,9 +579,9 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 * `SyntaxToken closeParenToken()`：获取右括号的[语法token](#语法tokensyntaxtoken)。
 
-* `StatementTree statement()`：获取`while`语句后的代码块。
+* `StatementTree statement()`：获取`while`语句后的代码[语句](#语句树statementtree)。
 
-  _为什么不用`BlockTree`？_
+  _这里把循环里的所有代码（包括大括号）当作一整个语句来处理，实际上返回[`BlockTree`](#块树blocktree)是更合理的做法。我们依然可以通过自定义遍历器的方式访问代码块的内容，详见[自定义规则范例](#for循环和for-each循环里不能嵌套if)。_
 
 
 #### Yield语句树`YieldStatementTree`
@@ -594,6 +630,8 @@ String result = switch (expression) {
 * `@Nullable SyntaxToken equalToken()`：如果变量在被声明时就赋值了，获取赋值语句中等号的[语法token](#语法tokensyntaxtoken)。
 
 * `@Nullable ExpressionTree initializer()`：如果变量在被声明时就赋值了，获取赋值语句中初始值的[表达式](#表达式树expressiontree)。
+
+  注意在声明时的赋值表达式不算[赋值表达式树](#赋值表达式树assignmentexpressiontree)。
 
 * `Symbol symbol()`：获取变量的[符号](#符号symbol)。
 
@@ -1221,7 +1259,7 @@ module com.example.mymodule {
 
 父类：无
 
-符号表示一个方法、类、变量等等的签名信息。
+符号表示一个方法、类、变量等等的签名信息。符号是SonarQube中的符号化（symbolic）API的核心，它可以“假装运行”代码来理清代码逻辑和流向控制，追踪变量的使用和方法的调用等等。
 
 `Symbol`有一个类似的类[`LabelSymbol`](#标签符号labelsymbol)，三个子类[`MethodSymbol`](#方法符号methodsymbol)、[`VariableSymbol`](#变量符号variablesymbol)、[`TypeSymbol`](#类型符号typesymbol)，和一个相关的类[`SymbolMetadata`](#符号元数据symbolmetadata)。
 
@@ -1428,7 +1466,7 @@ public class 自定义规则类 extends IssuableSubscriptionVisitor {
   // 对单个语法树进行检测（比如单个方法、类等等）
   @Override
   public void visitNode(@ParametersAreNonnullByDefault Tree tree) {
-    // 我们知道这个语法树的类型，所以可以强制转换；如果有多个类型，可以用instanceof判断
+    // 我们知道这个语法树的类型，所以可以强制转换；如果有多个类型，可以用tree.is(Kind kind)或者instanceof判断
     MethodTree methodTree = (MethodTree) tree;
     // 做一系列的检查，如果检查到问题，就调用reportIssue方法
     if (methodTree.parameters().size() == 1) {
@@ -1436,7 +1474,8 @@ public class 自定义规则类 extends IssuableSubscriptionVisitor {
       Type firstParamType = methodSymbol.parameterTypes().get(0);
       Type returnType = methodSymbol.returnType().type();
       if (returnType.is(firstParamType.fullyQualifiedName())) {
-        this.reportIssue(methodTree.simpleName(), "Parameter type must be different from return type");
+        // 第一个参数tree是需要报错的节点
+        this.reportIssue(tree, "Parameter type must be different from return type");
       }
     }
   }
@@ -1490,6 +1529,7 @@ public class 自定义规则类 extends BaseTreeVisitor implements JavaFileScann
   public void visitMethod(MethodTree tree) {
     // 对方法的语法树进行检测；在这里检测是前序遍历
     // 在检测过程中，如果检测到问题，就调用reportIssue方法
+    // 第二个参数tree是需要报错的节点
     this.context.reportIssue(this, tree, "Avoid declaring methods (don't ask why)");
 
     // 检测完成后，调用super的方法，继续检测方法内部的语法树
@@ -1623,13 +1663,11 @@ public class 测试文件名 {
 
 
 
-## SonarQube自定义规则范例
+## SonarQube自定义规则示例
 
-所有规则均来源于[Java开发手册](https://github.com/alibaba/p3c)。
+以下的规则仅做示例用，规则本身不一定有实际用途。
 
-### 编程规约
-
-#### 1.1.1 【强制】代码中的命名均不能以下划线或美元符号开始，也不能以下划线或美元符号结束。
+#### \[[Java开发手册](https://github.com/alibaba/p3c)\] 1.1.1 【强制】代码中的命名均不能以下划线或美元符号开始，也不能以下划线或美元符号结束。
 
 由于命名规范多用于类、方法和变量的命名，这里考虑遍历这三者的语法树。这里需要遍历多种语法树，但语法树之间互不影响，所以[`BaseTreeVisitor`](#basetreevisitor类)和[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)都可以用。
 
@@ -1763,7 +1801,7 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 ```
 
 
-#### 1.1.6 【强制】常量命名应该全部大写，单词间用下划线隔开，力求语义表达完整清楚，不要嫌名字长。
+#### \[[Java开发手册](https://github.com/alibaba/p3c)\] 1.1.6 【强制】常量命名应该全部大写，单词间用下划线隔开，力求语义表达完整清楚，不要嫌名字长。
 
 检测单词间是否用下划线隔开比较困难，需要识别单个单词，这里只检测常量（即`final`修饰的变量）命名是否全部大写。由于只检测变量，这里选择使用[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)。
 
@@ -1820,7 +1858,7 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 ```
 
 
-#### 1.1.11 【强制】避免在子父类的成员变量之间、或者不同代码块的局部变量之间采用完全相同的命名，使可理解性降低。
+#### \[[Java开发手册](https://github.com/alibaba/p3c)\] 1.1.11 【强制】避免在子父类的成员变量之间、或者不同代码块的局部变量之间采用完全相同的命名，使可理解性降低。
 
 由于只遍历类树，这里选择使用[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)。
 
@@ -1930,7 +1968,7 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 ```
 
 
-#### 1.2.2 【强制】long 或 Long 赋值时，数值后使用大写 L，不能是小写 l，小写容易跟数字混淆，造成误解。
+#### \[[Java开发手册](https://github.com/alibaba/p3c)\] 1.2.2 【强制】long 或 Long 赋值时，数值后使用大写 L，不能是小写 l，小写容易跟数字混淆，造成误解。
 
 因为我们只关心`long`类型的字面量，所以这里选择使用[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)，并把`nodesToVisit()`中的类型列表设为`Tree.Kind.LONG_LITERAL`。这样只会对`long`类型的字面量进行检测。
 
@@ -1971,7 +2009,7 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 ```
 
 
-#### 1.3.2 【强制】左小括号和右边相邻字符之间不需要空格；右小括号和左边相邻字符之间也不需要空格；而左大括号前需要加空格。
+#### \[[Java开发手册](https://github.com/alibaba/p3c)\] 1.3.2 【强制】左小括号和右边相邻字符之间不需要空格；右小括号和左边相邻字符之间也不需要空格；而左大括号前需要加空格。
 
 此处仅检查小括号的使用，对大括号的检查是类似的。
 
@@ -1980,6 +2018,34 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 规则的核心思想是取得左右小括号的[语法token](#语法tokensyntaxtoken)，再取得括号中的语句的第一个和最后一个[语法token](#语法tokensyntaxtoken)，然后比较这些token的位置。
 
 由于完整的规则文件过长，这里仅展示部分方法，其它方法的构造是类似的。
+
+使用到的类和方法：
+
+* [`BaseTreeVisitor`](#basetreevisitor类)：`visitLambdaExpression()`、`visitParenthesized()`、`visitTypeCast()`、`visitDoWhileStatement()`、`visitForEachStatement()`、`visitForStatement()`、`visitIfStatement()`、`visitSynchronizedStatement()`、`visitTryStatement()`
+
+* [`SyntaxToken`](#语法tokensyntaxtoken)：`column()`、`identifierToken()`
+
+* [`Tree`](#树tree)：`firstToken()`、`lastToken()`
+
+* [`LambdaExpressionTree`](#lambda表达式树lambdaexpressiontree)：`openParenToken()`、`closeParenToken()`、`parameters()`
+
+* [`VariableTree`](#变量树variabletree)：`simpleName()`
+
+* [`ParenthesizedTree`](#括号树parenthesizedtree)：`openParenToken()`、`closeParenToken`、`expression()`
+
+* [`TypeCastTree`](#类型转换树typecasttree)：`openParenToken()`、`closeParenToken()`、`type()`
+
+* [`DoWhileStatementTree`](#do-while语句树dowhilestatementtree)：`openParenToken()`、`closeParenToken()`、`condition()`
+
+* [`ForEachStatement`](#foreach语句树foreachstatement)：`openParenToken()`、`closeParenToken()`、`variable()`、`expression()`
+
+* [`ForStatementTree`](#for语句树forstatementtree)：`openParenToken()`、`closeParenToken()`、`initializer()`、`update()`
+
+* [`IfStatementTree`](#if语句树ifstatementtree)：`openParenToken()`、`closeParenToken()`、`condition()`
+
+* [`SynchronizedStatementTree`](#synchronized语句树synchronizedstatementtree)：`openParenToken()`、`closeParenToken()`、`expression()`
+
+* [`TryStatementTree`](#try语句树trystatementtree)：`openParenToken()`、`closeParenToken()`、`resourceList()`
 
 ```java
 package org.sonar.samples.java.checks;
@@ -2114,3 +2180,143 @@ public class JavaDevRuleCheckBaseVisitor extends BaseTreeVisitor implements Java
 
 }
 ```
+
+
+#### `for`循环和`for-each`循环里不能嵌套`if`。
+
+由于[`ForStatementTree`](#for语句树forstatementtree)和[`ForEachStatement`](#for-each语句foreachstatement)都会把循环里的代码块当作一整个语句来处理（而不是当作代码块），我们需要自己定义一个树的遍历器去检查循环里的代码块的内容。
+
+检查的逻辑是：只检查循环里的代码块，在循环里只要遇到`if`语句，不论在哪里遇到都报告错误。
+
+使用到的类和方法：
+
+* [`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)：`visitNode()`、`nodesToVisit()`、`reportIssue()`
+
+* [`BaseTreeVisitor`](#basetreevisitor类)：`visitIfStatement()`
+
+* [`Tree`](#树tree)：`accept()`
+
+* [`ForStatementTree`](#for语句树forstatementtree)：`statement()`
+
+* [`ForEachStatement`](#for-each语句foreachstatement)：`statement()`
+
+```java
+package org.sonar.samples.java.checks;
+
+import org.sonar.check.Rule;
+import org.sonar.plugins.java.api.IssuableSubscriptionVisitor;
+import org.sonar.plugins.java.api.tree.*;
+
+import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.*;
+
+@Rule(key = "JavaDevRuleCheck")
+public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
+
+  @Override
+  public List<Tree.Kind> nodesToVisit() {
+    return Arrays.asList(Tree.Kind.FOR_STATEMENT, Tree.Kind.FOR_EACH_STATEMENT);
+  }
+
+  @Override
+  public void visitNode(@ParametersAreNonnullByDefault Tree tree) {
+    // ForStatementTree和ForEachStatement都有statement()方法，
+    // 所以可以定义一个统一的StatementTree变量来代表循环里的代码块
+    StatementTree codeBlock;
+    // tree只能是ForStatementTree或者ForEachStatement，这里用is()判断种类
+    if (tree.is(Tree.Kind.FOR_STATEMENT)) {
+      ForStatementTree forTree = (ForStatementTree) tree;
+      codeBlock = forTree.statement();
+    } else {
+      ForEachStatement forEachTree = (ForEachStatement) tree;
+      codeBlock = forEachTree.statement();
+    }
+    // 手动放入visitor来自定义节点访问顺序，visitor只能检查codeBlock节点和它的所有子节点
+    codeBlock.accept(new StatementVisitor());
+  }
+
+  // 自定义一个检查循环里的代码的visitor
+  private class StatementVisitor extends BaseTreeVisitor {
+    // 因为只会检查循环里的代码，所以只要遇到if语句就报告错误。循环外的if语句不会被检查
+    @Override
+    public void visitIfStatement(@ParametersAreNonnullByDefault IfStatementTree tree) {
+      JavaDevRuleCheck.this.reportIssue(tree, "Should not nest if statement inside for loop");
+      // （可选）如果if里有嵌套的语句，也要检查
+      super.visitIfStatement(tree);
+    }
+  }
+}
+```
+
+
+#### `final`修饰的变量不能被重新赋值。
+
+由于我们是检查**变量**是否被`final`修饰以及是否被重新赋值，我们只会遍历[变量树](#变量树variabletree)（可能还会遍历[赋值表达式树](#赋值表达式树assignmentexpressiontree)）所以这里选择使用[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)。
+
+检查的逻辑是：对于每一个`final`变量，检查它是否在声明时就已经被赋值了，如果没有，则允许一次赋值（`allowedAssignments`设为`1`），否则一次赋值都不允许（`allowedAssignments`设为`0`）。然后对于每一个使用了这个变量的地方，检查是否为赋值语句。如果`final`变量是被赋值的一方，那么赋值次数`assignments`就加一；如果`assignments`大于允许的赋值次数（`allowedAssignments`），则报告错误。
+
+这里的诀窍是，如果这个`final`变量是被赋值的一方，**它的[标识符](#标识符树identifiertree)的父节点一定是[赋值表达式树](#赋值表达式树assignmentexpressiontree)。**如果是赋值给别的变量，则它的父节点会是别的树，比如[变量树](#变量树variabletree)、[表达式树](#表达式树expressiontree)等。通过这个方法可以方便地检验`final`变量是否被重新赋值。
+
+使用到的类和方法：
+
+* [`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)：`visitNode()`、`nodesToVisit()`、`reportIssue()`
+
+* [`Tree`](#树tree)：`parent()`
+
+* [`VariableTree`](#变量树variabletree)：`modifiers()`、`symbol()`、`initializer()`
+
+* [`ModifiersTree`](#多修饰符树modifierstree)：`modifiers()`
+
+* [`ModifierKeywordTree`](#修饰符关键字树modifierkeywordtree)：`modifier()`
+
+* [`Symbol`](#符号symbol)：`usages()`
+
+```java
+package org.sonar.samples.java.checks;
+
+import org.sonar.check.Rule;
+import org.sonar.plugins.java.api.IssuableSubscriptionVisitor;
+import org.sonar.plugins.java.api.semantic.Symbol;
+import org.sonar.plugins.java.api.tree.*;
+
+import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.*;
+
+@Rule(key = "JavaDevRuleCheck")
+public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
+
+  @Override
+  public List<Tree.Kind> nodesToVisit() {
+    return Collections.singletonList(Tree.Kind.VARIABLE);
+  }
+
+  @Override
+  public void visitNode(@ParametersAreNonnullByDefault Tree tree) {
+    VariableTree variableTree = (VariableTree) tree;
+    // 取得变量的修饰符
+    List<ModifierKeywordTree> modifiers = variableTree.modifiers().modifiers();
+    for (ModifierKeywordTree modifier: modifiers) {
+      // 如果变量的修饰符中有final
+      if (modifier.modifier() == Modifier.FINAL) {
+        // 先检查final变量是否在声明时就已经被赋值了
+        // 如果没有，则应该允许第一次赋值
+        int allowedAssignments = variableTree.initializer() == null ? 1 : 0;
+        int assignments = 0;
+        // 对每一个使用了这个变量的地方进行检查
+        for (IdentifierTree identifierTree: variableTree.symbol().usages()) {
+          // 如果这个变量被重新赋值了
+          if (identifierTree.parent() instanceof AssignmentExpressionTree) {
+            assignments ++;
+            if (assignments > allowedAssignments) {
+              this.reportIssue(identifierTree, "Cannot reassign final variables");
+            }
+          }
+        }
+        // 修饰符中只会有一个final，所以检查到final就可以停止了
+        break;
+      }
+    }
+  }
+}
+```
+
