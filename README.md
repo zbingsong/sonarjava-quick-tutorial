@@ -1,3 +1,5 @@
+更新于2023-8-2
+
 # SonarQube自定义规则简便文档
 
 Sonar通过遍历语法树的形式来进行代码检查。
@@ -162,11 +164,15 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 注意如果有连续的`.`，那么每个`.`都会有一个`MemberSelectExpressionTree`。例如`java.lang.annotation.*`会被解析为三个`MemberSelectExpressionTree`，分别是`java.lang.annotation.*`、`java.lang.annotation`和`java.lang`。
 
-* `ExpressionTree expression()`：获取整个访问成员的[表达式](#表达式树expressiontree)。
+* `ExpressionTree expression()`：获取访问成员的`.`之前的部分的[表达式](#表达式树expressiontree)。
 
-* `SyntaxToken operatorToken()`：获取`.`的[语法token](#语法tokensyntaxtoken)。
+  例如`System.out.println()`中，这个方法取到的是`System.out`。
+
+* `SyntaxToken operatorToken()`：获取`.`的[语法token](#语法tokensyntaxtoken)。仅限成员名称前面的那个点。
 
 * `IdentifierTree identifier()`：获取被访问的成员的[标识符树](#标识符树identifiertree)。
+
+  例如`System.out.println()`中，这个方法取到的是`println`。
 
 
 #### 调用方法树`MethodInvocationTree`
@@ -197,6 +203,8 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 #### 新建数组树`NewArrayTree`
 
+表示创建一个新的数组。
+
 父类：[`ExpressionTree`](#表达式树expressiontree)
 
 * `@Nullable TypeTree type()`：获取数组的[类型树](#类型树typetree)。
@@ -212,23 +220,27 @@ Sonar通过遍历语法树的形式来进行代码检查。
 * `@Nullable SyntaxToken closeBraceToken()`：获取右大括号的[语法token](#语法tokensyntaxtoken)。
 
 
-#### 新建类树`NewClassTree`
+#### 新建类对象树`NewClassTree`
 
 父类：[`ExpressionTree`](#表达式树expressiontree)
 
-* `@Nullable ExpressionTree enclosingExpression()`：获取外部类的[表达式](#表达式树expressiontree)。仅在这个新建类是内部类时才会有。
+表示创建一个新的类对象。
 
-* `@Nullable SyntaxToken dotToken()`：获取`.`的[语法token](#语法tokensyntaxtoken)。仅在这个新建类是内部类时才会有。
+* `@Nullable ExpressionTree enclosingExpression()`：如果创建对象是在某个语句里进行的（例如`a.method(new MyClass())`），获取外部的[表达式](#表达式树expressiontree)。
+
+* `@Nullable SyntaxToken dotToken()`：获取`.`的[语法token](#语法tokensyntaxtoken)。仅在这个新建对象的类是内部类时才会有。
 
 * `@Nullable SyntaxToken newKeyword()`：获取`new`关键字的[语法token](#语法tokensyntaxtoken)。
 
-* `@Nullable TypeArguments typeArguments()`：获取类的[泛型参数值列表](#泛型参数值列表typearguments)。
+* `@Nullable TypeArguments typeArguments()`：获取新建对象时使用的[泛型参数值列表](#泛型参数值列表typearguments)。
 
 * `TypeTree identifier()`：获取类的[类型树](#类型树typetree)。
 
-* `Arguments arguments()`：获取新建类时使用的[参数列表](#参数列表arguments)。
+  `newClassTree.symbolType()`（继承自[`ExpressionTree`](#表达式树expressiontree)的方法）和`newClassTree.identifier().symbolType()`是等价的。
 
-* `@Nullable ClassTree classBody()`：获取类的内容（[类树](#类树classtree)）。
+* `Arguments arguments()`：获取新建对象时使用的[参数列表](#参数列表arguments)。
+
+* `@Nullable ClassTree classBody()`：如果新建的对象是一个匿名类，获取类的内容（[类树](#类树classtree)）。
 
 * `Symbol constructorSymbol()`：获取类的`constructor`的[符号](#符号symbol)。
 
@@ -312,6 +324,10 @@ Sonar通过遍历语法树的形式来进行代码检查。
 #### 类树`ClassTree`
 
 父类：[`StatementTree`](#语句树statementtree) 
+
+代表定义一个新类。
+
+注意`ClassTree`和[`NewClassTree`](#新建类对象树newclasstree)的区别。`ClassTree`是定义一个新类，而[`NewClassTree`](#新建类对象树newclasstree)是创建一个类的实例。
 
 * `@Nullable SyntaxToken declarationKeyword()`：获取类的声明关键字的[语法token](#语法tokensyntaxtoken)，例如`public`、`private`、`protected`等等。
 
@@ -734,9 +750,9 @@ class MyClass {
 
 * `SyntaxToken identifierToken()`：获取标识符的[语法token](#语法tokensyntaxtoken)。
 
-* `IdentifierTree.name()`：标识符的名称。
+* `String name()`：标识符的名称。
 
-* `IdentifierTree.symbol()`：标识符的[符号](#符号symbol)。
+* `Symbol symbol()`：标识符的[符号](#符号symbol)。
 
 
 #### 含参类型树`ParameterizedTypeTree`
@@ -1065,6 +1081,8 @@ module com.example.mymodule {
 
 与父类相比没有新增的方法。
 
+有时能类型转换成[`ImportTree`](#导入树importtree)。
+
 
 #### 导入树`ImportTree`
 
@@ -1077,6 +1095,8 @@ module com.example.mymodule {
 * `@Nullable SyntaxToken staticKeyword()`：如果这个导入项是静态导入，获取`static`关键字的[语法token](#语法tokensyntaxtoken)。
 
 * `Tree qualifiedIdentifier()`：获取导入的包。
+
+  _这个地方的[`Tree`](#树tree)可以转换为[`MemberSelectExpressionTree`](#成员访问树memberselectexpressiontree)或者[`IdentifierTree`](#标识符树identifiertree)。_
 
 * `SyntaxToken semicolonToken()`：获取分号的[语法token](#语法tokensyntaxtoken)。
 
@@ -1189,7 +1209,7 @@ module com.example.mymodule {
 
 * `IdentifierTree simpleName()`：获取`enum`常量的[标识符树](#标识符树identifiertree)。
 
-* `NewClassTree initializer()`：获取`enum`常量的初始化语句，以[新建类树](#新建类树newclasstree)的方式获取。
+* `NewClassTree initializer()`：获取`enum`常量的初始化语句，以[新建类树](#%E6%96%B0%E5%BB%BA%E7%B1%BB%E5%AF%B9%E8%B1%A1%E6%A0%91newclasstree)的方式获取。
 
 * `@Nullable SyntaxToken separatorToken()`：获取`enum`常量后的分隔符的[语法token](#语法tokensyntaxtoken)。
 
@@ -1218,7 +1238,11 @@ module com.example.mymodule {
 
 类型是把Java中的类型转换为语法树元素得来的，内置了多种判断类型的方法。
 
-注意此处的类型`Type`和[`Tree.Kind`](#树tree)中的种类不是同一个东西：此处的类型是Java中的类型，[`Tree.Kind`](#树tree)中的种类是语法树中的种类。
+注意
+
+1. 此处的类型`Type`和[`Tree.Kind`](#树tree)中的种类不是同一个东西：此处的类型是Java中的类型，[`Tree.Kind`](#树tree)中的种类是语法树中的种类。
+
+2. `import`语句中的类型是无法获取的。例如`import java.util.List`，`List`是无法获取的。
 
 `Type`下有`Type.Primitives`枚举类，包含了所有Java的基本类型。
 
@@ -1433,7 +1457,6 @@ SonarQube的Java自定义规则是通过插件来实现的。插件是一个完�
 
 每新增一个规则，都需要在`/src/main/java/package路径/RulesList.java`的`getJavaChecks()`方法或`getJavaTestChecks()`方法中添加这个规则的类。如果有测试，则同时需要在`/src/test/java/package路径/MyJavaFileCheckRegistrarTest.java`的`checkNumberRules()`方法中修改规则的总数量。
 
-
 完成规则构建后，用`mvn clean package`命令打包，把生成的jar包放到SonarQube的`$SONAR_HOME/extensions/plugins`目录下，重启SonarQube即可。
 
 
@@ -1478,6 +1501,11 @@ public class 自定义规则类 extends IssuableSubscriptionVisitor {
         this.reportIssue(tree, "Parameter type must be different from return type");
       }
     }
+  }
+
+  @Override
+  public void leaveNode(Tree tree) {
+    // 如果需要在检测完语法树后再做一些操作，可以在这里写
   }
 
   // 指定扫描文件的方式（一般不会重载这个方法，使用默认的方法即可）
@@ -2320,3 +2348,98 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 }
 ```
 
+
+#### 不能出现没有在文件中使用的`import`语句。
+
+由于我们需要遍历整个文件，所以这里选择使用[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)。
+
+这个例子中使用了SonarJava的一个工具类`ExpressionsHelper`来取得完整的`import`语句后的类名，源代码在[这里](https://github.com/SonarSource/sonar-java/blob/master/java-checks/src/main/java/org/sonar/java/checks/helpers/ExpressionsHelper.java)。
+
+使用到的类和方法：
+
+* [`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)：`visitNode()`、`leaveNode()`、`nodesToVisit()`、`reportIssue()`
+
+* [`Tree`](#树tree)：`accept()`
+
+* [`CompilationUnitTree`](#编译单元树compilationunittree)：`imports()`
+
+* [`ImportTree`](#import语句树importtree)：`is()`、`qualifiedIdentifier()`
+
+* [`VariableTree`](#变量树variabletree)：`type()`
+
+* [`TypeTree`](#类型树typetree)：`symbolType()`
+
+* [`Type`](#类型type)：`fullyQualifiedName()`
+
+* [`NewClassTree`](#新建类对象树newclasstree)：`symbolType()`
+
+* `ExpressionsHelper`：`concatenate()`
+
+```java
+package org.sonar.samples.java.checks;
+
+import org.sonar.check.Rule;
+import org.sonar.plugins.java.api.IssuableSubscriptionVisitor;
+import org.sonar.plugins.java.api.tree.*;
+
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.*;
+
+@Rule(key = "JavaDevRuleCheck")
+public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
+
+  // 用这个HashMap来存import的类和它对应的ImportTree，ImportTree用于寻找报错位置
+  private final Map<String, ImportTree> imports = new HashMap<>();
+
+  @Override
+  public List<Tree.Kind> nodesToVisit() {
+    // 需要从整个文件的树入手，所以选择CompilationUnitTree
+    return Collections.singletonList(Tree.Kind.COMPILATION_UNIT);
+  }
+
+  @Override
+  public void visitNode(@ParametersAreNonnullByDefault Tree tree) {
+    CompilationUnitTree compilationUnitTree = (CompilationUnitTree) tree;
+    // 取得所有的import语句树并加入imports中
+    compilationUnitTree.imports()
+      .stream()
+      .filter(importTree -> importTree.is(Tree.Kind.IMPORT))
+      .map(ImportTree.class::cast)
+      .forEach(importTree -> {
+        // 取得完整的import语句后的类名
+        String importName = ExpressionsHelper.concatenate((ExpressionTree) importTree.qualifiedIdentifier());
+        this.imports.put(importName, importTree);
+      });
+    tree.accept(new TypeVisitor());
+  }
+
+  // 在遍历完整个文件后，对每个没有使用到的import语句报错
+  @Override
+  public void leaveNode(@ParametersAreNonnullByDefault Tree tree) {
+    this.imports.forEach((unusedImport, syntaxNode) -> {
+      this.reportIssue(syntaxNode, "Remove unused import " + unusedImport);
+    });
+  }
+
+  // 自定义一个visitor来检查变量的类型
+  private class TypeVisitor extends BaseTreeVisitor {
+    // 检查新建类实例时使用的类的类型
+    @Override
+    public void visitNewClass(NewClassTree tree) {
+      String typeName = tree.symbolType().fullyQualifiedName();
+      JavaDevRuleCheck.this.imports.remove(typeName);
+      super.visitNewClass(tree);
+    }
+
+    // 检查所有变量的类型
+    @Override
+    public void visitVariable(VariableTree tree) {
+      String typeName = tree.type().symbolType().fullyQualifiedName();
+      JavaDevRuleCheck.this.imports.remove(typeName);
+      super.visitVariable(tree);
+    }
+  }
+
+}
+```
