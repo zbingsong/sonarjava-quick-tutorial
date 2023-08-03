@@ -1637,6 +1637,36 @@ public class 复杂规则 extends IssuableSubscriptionVisitor {
 通过[`Tree`](#树tree)的`accept()`方法，我们可以手动地放入一个visitor来立刻开始遍历这个树。这个visitor只能检查`accept()`方法中放入的节点和它的所有子节点，不能检查其他节点。这个visitor可以是[`IssuableSubscriptionVisitor`](#issuablesubscriptionvisitor类)或[`BaseTreeVisitor`](#basetreevisitor类)的子类。`visitNode()`中`accept()`后面的代码会等待遍历结束再执行。
 
 
+#### 有用的一些helper方法
+
+##### 拿取当前成员访问表达式的源文本
+
+```java
+import org.sonar.java.checks.helpers.ExpressionsHelper;
+
+String sourceCode = ExpressionsHelper.concatenate((ExpressionTree) tree);
+```
+
+##### 拿取当前成员访问表达式的类型
+
+```java
+import org.sonar.plugins.java.api.semantic.Type;
+import org.sonar.plugins.java.api.tree.*;
+
+public Type getType(ExpressionTree expressionTree) {
+  if (expressionTree.is(Tree.Kind.IDENTIFIER)) {
+    IdentifierTree identifierTree = (IdentifierTree) expressionTree;
+    Symbol symbol = identifierTree.symbol();
+    return symbol.type();
+  } else if (expressionTree.is(Tree.Kind.MEMBER_SELECT)) {
+    MemberSelectExpressionTree memberSelect = (MemberSelectExpressionTree) expressionTree;
+    return this.getType(memberSelect.expression());
+  }
+  return null;
+}
+```
+
+
 
 ### 描述性HTML和JSON文件
 
@@ -2455,10 +2485,12 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 package org.sonar.samples.java.checks;
 
 import org.sonar.check.Rule;
+import org.sonar.java.checks.helpers.ExpressionsHelper;
 import org.sonar.plugins.java.api.IssuableSubscriptionVisitor;
+import org.sonar.plugins.java.api.semantic.Symbol;
+import org.sonar.plugins.java.api.semantic.Type;
 import org.sonar.plugins.java.api.tree.*;
 
-import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.*;
 
