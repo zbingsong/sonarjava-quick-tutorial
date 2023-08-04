@@ -1,4 +1,4 @@
-更新于2023-8-3
+更新于2023-8-4
 
 # SonarQube自定义规则简便文档
 
@@ -333,9 +333,9 @@ Sonar通过遍历语法树的形式来进行代码检查。
 
 注意`ClassTree`和[`NewClassTree`](#新建类对象树newclasstree)的区别。`ClassTree`是定义一个新类，而[`NewClassTree`](#新建类对象树newclasstree)是创建一个已有的类的实例。
 
-* `@Nullable SyntaxToken declarationKeyword()`：获取类的声明关键字的[语法token](#语法tokensyntaxtoken)，例如`public`、`private`、`protected`等等。
+* `@Nullable SyntaxToken declarationKeyword()`：如果一个类不是匿名类，获取类定义时的`class`或`interface`关键字的[语法token](#语法tokensyntaxtoken)。
 
-* `@Nullable SyntaxToken simpleName()`：获取类名的[语法token](#语法tokensyntaxtoken)。
+* `@Nullable SyntaxToken simpleName()`：如果一个类不是匿名类，获取类名的[语法token](#语法tokensyntaxtoken)。
 
 * `TypeParameters typeParameters()`：获取类的[泛型参数列表](#泛型参数列表typeparameters)。
 
@@ -1098,6 +1098,8 @@ module com.example.mymodule {
 
 父类：[`ImportClauseTree`](#导入项树importclausetree)
 
+注意在导入树中是无法识别导入的类的[类型](#类型type)和[符号](#符号symbol)的。
+
 * `boolean isStatic()`：判断这个导入项是否是静态导入。
 
 * `SyntaxToken importKeyword()`：获取`import`关键字的[语法token](#语法tokensyntaxtoken)。
@@ -1219,7 +1221,7 @@ module com.example.mymodule {
 
 * `IdentifierTree simpleName()`：获取`enum`常量的[标识符树](#标识符树identifiertree)。
 
-* `NewClassTree initializer()`：获取`enum`常量的初始化语句，以[新建类树](#%E6%96%B0%E5%BB%BA%E7%B1%BB%E5%AF%B9%E8%B1%A1%E6%A0%91newclasstree)的方式获取。
+* `NewClassTree initializer()`：获取`enum`常量的初始化语句，以[新建类对象树](#新建类对象树newclasstree)的方式获取。
 
 * `@Nullable SyntaxToken separatorToken()`：获取`enum`常量后的分隔符的[语法token](#语法tokensyntaxtoken)。
 
@@ -1415,13 +1417,84 @@ module com.example.mymodule {
 
 * `String text()`：token的原文本。
 
-* `int line()`：token所在的行数。
+* `int line()`：token所在的行数。行数是从**1**开始的。
 
-* `int column()`：token所在的列数。
+* `int column()`：token所在的列数。列数是从**0**开始的。
 
-* `List<SyntaxTrivia>`：token的注释。
+* `List<SyntaxTrivia>`：token的[语法trivia](#语法triviasyntaxtrivia)。
 
-  _暂时没发现怎么使用，测试中无法获取到注释。_
+
+#### 语法trivia`SyntaxTrivia`
+
+父类：[`Tree`](#树Tree)
+
+代表一个[语法token](#语法tokensyntaxtoken)之前的空格、注释等等对程序执行没有影响的部分。只能获取在这个[语法token](#语法tokensyntaxtoken)和上一个有意义的[语法token](#语法tokensyntaxtoken)之间的trivia。
+
+似乎只能获取文本注释，不能把获取空格、换行等别的trivia。只能获取这个[语法token](#语法tokensyntaxtoken)**之前**的注释。
+
+例：
+
+```java
+// 注释一
+public class MyClass {
+  /* 注释二
+      第二行
+   */
+  private void myMethod() {
+    System.out.println("Hello World!");
+  }
+}
+```
+
+在以上的代码中，如果我需要获取`注释一`，那么我需要先找到`MyClass`的`public`关键字的[语法token](#语法tokensyntaxtoken)，再调用`trivias()`方法获取所有`public`关键字之前的[语法trivia](#语法triviasyntaxtrivia)，然后再找到`注释一`的[语法trivia](#语法triviasyntaxtrivia)。
+
+如果我需要获取`注释二`，那么我需要先找到`myMethod`的`private`关键字的[语法token](#语法tokensyntaxtoken)并重复以上步骤。`private`的[语法token](#语法tokensyntaxtoken)能获取的[语法trivia](#语法triviasyntaxtrivia)仅限`private`之前，`MyClass`的左大括号`{`之后的部分，获取到的`// 注释二`文本会忽略前面的空格，但会带有注释用的`//`，而且`column()`方法计算列数时会算入前面的空格。
+
+对于多行注释，第一行前面的空格会被忽略，后面所有行的空格会被保留。获取到的注释文本是：
+
+```java
+/* 注释二
+      第二行
+   */
+```
+
+注释开始的行数是3，列数是2。
+
+在测试时，`// Noncompliant`注释会被忽略。
+
+* `String comment()`：获取注释的原文本。
+
+* `int startLine()`：注释开始的行数。
+
+* `int column()`：注释开始的列数。
+
+
+
+### Helper和Util类
+
+源码见[SonarJava仓库](#https://github.com/SonarSource/sonar-java/tree/master/java-checks/src/main/java/org/sonar/java/checks/helpers)。
+
+#### `ExpressionsHelper`
+
+用于处理关于[表达式树](#表达式树expressiontree)的一些操作。
+
+* `static String concatenate(@Nullable ExpressionTree tree)`：获取一个[表达式树](#表达式树expressiontree)的原文本。
+
+
+#### `MethodMatchers`（在[另一个包](#https://github.com/SonarSource/sonar-java/blob/master/java-frontend/src/main/java/org/sonar/plugins/java/api/semantic/MethodMatchers.java#L94)中）
+
+用于检查一个文件中的方法是否是某个特定的方法。
+
+用法：
+
+1. 用`MethodMatchers matcher = MethodMatchers.create().设置类型.names(方法名).设置参数.build()`来构造一个`MethodMatchers`对象并设置想要匹配的方法。
+
+2. 用`matcher.match(tree)`来检测`tree`代表的方法是否符合`matcher`中设置的方法。
+
+
+#### `Javadoc`
+
+获取一个类或者方法的Javadoc注释并对检查这个注释是否符合Javadoc规范。
 
 
 
@@ -2456,6 +2529,8 @@ public class JavaDevRuleCheck extends IssuableSubscriptionVisitor {
 所以，这里我们选择使用[`CompilationUnitTree`](#编译单元树compilationunittree)。[`CompilationUnitTree`](#编译单元树compilationunittree)是整个文件的父节点，因此我们可以在这个节点上手动规定遍历的顺序，即先拿到所有的`import`语句，再进入节点进行遍历。
 
 需要导入包的地方可能是变量类型、类实例、注解、使用枚举类、`extends`和`implements`语句、泛型参数值，以及方法参数和返回值类型。总结起来我们需要检查这些地方：[变量](#变量树variabletree)、[方法](#方法树methodtree)、[类](#类树classtree)、[类实例化](#新建类对象树newclasstree)、[注解](#注解树annotationtree)、[成员访问](#成员访问树memberselectexpressiontree)和[泛型参数值](#泛型参数值列表typearguments)。
+
+这里没有检测静态导入和Javadoc中出现的类。
 
 在以下的规则代码中，我们先通过[`CompilationUnitTree`](#编译单元树compilationunittree)的`imports`方法取得所有的[`ImportTree`](#导入树importtree)并存入一个`Map`，再定义一个只检查[新建类实例](#新建类对象树newclasstree)和[变量](#变量树variabletree)的类型的visitor来进入[`CompilationUnitTree`](#编译单元树compilationunittree)节点。对每个检查到的类型，如果在`Map`中有对应的`import`的类，则从`Map`中删除这个类。`Map`中最后剩下的类就是没有被使用到的类。
 
